@@ -227,8 +227,8 @@ fun CartaNauticaScreen() {
                 val dx = (sin(rad) * deltaLat * (LON_MAX - LON_MIN) / (LAT_MAX - LAT_MIN)).toFloat()
                 val dy = (-cos(rad) * deltaLat).toFloat()
                 val end = Offset(
-                    start.x + dx * imageWidth / (LON_MAX - LON_MIN),
-                    start.y + dy * imageHeight / (LAT_MAX - LAT_MIN)
+                    x = start.x + dx * imageWidth / (LON_MAX - LON_MIN),
+                    y = start.y + dy * imageHeight / (LAT_MAX - LAT_MIN)
                 )
                 vectors = vectors + Vector(start, end)
                 showVectorDialog = false

@@ -41,9 +41,12 @@ const val LAT_MIN = 35.6667
 const val LON_MIN = 5.1667
 const val LON_MAX = 6.3333
 
+// Vector ahora almacena solo coordenadas Float
 data class Vector(
-    val start: Offset,
-    val end: Offset
+    val startX: Float,
+    val startY: Float,
+    val endX: Float,
+    val endY: Float
 )
 
 class MainActivity : ComponentActivity() {
@@ -142,13 +145,15 @@ fun CartaNauticaScreen() {
                     val pos = latLonToPixel(lat, lon, imageWidth, imageHeight)
                     Box(
                         modifier = Modifier
-                            .offset { with(density) {
-                                val r = pointSize.toPx()
-                                IntOffset(
-                                    (pos.x - r / 2).roundToInt(),
-                                    (pos.y - r / 2).roundToInt()
-                                )
-                            } }
+                            .offset {
+                                with(density) {
+                                    val r = pointSize.toPx()
+                                    IntOffset(
+                                        (pos.x - r / 2).roundToInt(),
+                                        (pos.y - r / 2).roundToInt()
+                                    )
+                                }
+                            }
                             .size(pointSize)
                             .background(Color.Red)
                     )
@@ -156,19 +161,14 @@ fun CartaNauticaScreen() {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     vectors.forEach { vector ->
                         drawVector(
-                            Offset(
-                                (vector.start.x * scale + offsetX),
-                                (vector.start.y * scale + offsetY)
-                            ),
-                            Offset(
-                                (vector.end.x * scale + offsetX),
-                                (vector.end.y * scale + offsetY)
-                            )
+                            Offset(vector.startX * scale + offsetX, vector.startY * scale + offsetY),
+                            Offset(vector.endX * scale + offsetX, vector.endY * scale + offsetY)
                         )
                     }
                 }
             }
         }
+
         Column(
             modifier = Modifier
                 .width(64.dp)
@@ -176,30 +176,14 @@ fun CartaNauticaScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
-            Button(onClick = { showDialog = true }) {
-                Text("•", fontSize = 24.sp)
-            }
-            Button(onClick = { vectorMode = true }) {
-                Text("→", fontSize = 24.sp)
-            }
-            Button(onClick = { }) {
-                Text("←", fontSize = 24.sp)
-            }
-            Button(onClick = { }) {
-                Text("↝", fontSize = 24.sp)
-            }
-            Button(onClick = { }) {
-                Text("○", fontSize = 24.sp)
-            }
-            Button(onClick = { }) {
-                Text("B", fontSize = 24.sp)
-            }
-            Button(onClick = { }) {
-                Text("P", fontSize = 24.sp)
-            }
-            Button(onClick = { }) {
-                Text("X", fontSize = 24.sp)
-            }
+            Button(onClick = { showDialog = true }) { Text("•", fontSize = 24.sp) }
+            Button(onClick = { vectorMode = true }) { Text("→", fontSize = 24.sp) }
+            Button(onClick = { }) { Text("←", fontSize = 24.sp) }
+            Button(onClick = { }) { Text("↝", fontSize = 24.sp) }
+            Button(onClick = { }) { Text("○", fontSize = 24.sp) }
+            Button(onClick = { }) { Text("B", fontSize = 24.sp) }
+            Button(onClick = { }) { Text("P", fontSize = 24.sp) }
+            Button(onClick = { }) { Text("X", fontSize = 24.sp) }
         }
     }
 
@@ -226,11 +210,12 @@ fun CartaNauticaScreen() {
                 val deltaLat = distancia / 60.0
                 val dx = (sin(rad) * deltaLat * (LON_MAX - LON_MIN) / (LAT_MAX - LAT_MIN)).toFloat()
                 val dy = (-cos(rad) * deltaLat).toFloat()
-                val end = Offset(
-                    x = start.x + dx * imageWidth / (LON_MAX - LON_MIN),
-                    y = start.y + dy * imageHeight / (LAT_MAX - LAT_MIN)
+                vectors = vectors + Vector(
+                    startX = start.x,
+                    startY = start.y,
+                    endX = start.x + dx * imageWidth / (LON_MAX - LON_MIN).toFloat(),
+                    endY = start.y + dy * imageHeight / (LAT_MAX - LAT_MIN).toFloat()
                 )
-                vectors = vectors + Vector(start, end)
                 showVectorDialog = false
                 vectorStart = null
                 vectorMode = false
@@ -270,14 +255,10 @@ fun AddPointDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onAddPoint(latG, latM, lonG, lonM) }) {
-                Text("Añadir")
-            }
+            Button(onClick = { onAddPoint(latG, latM, lonG, lonM) }) { Text("Añadir") }
         },
         dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancelar")
-            }
+            Button(onClick = onDismiss) { Text("Cancelar") }
         }
     )
 }
@@ -301,14 +282,10 @@ fun AddVectorDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { val r = rumbo.toIntOrNull() ?: return@Button; val d = distancia.toDoubleOrNull() ?: return@Button; onAddVector(r, d) }) {
-                Text("Validar")
-            }
+            Button(onClick = { val r = rumbo.toIntOrNull() ?: return@Button; val d = distancia.toDoubleOrNull() ?: return@Button; onAddVector(r, d) }) { Text("Validar") }
         },
         dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancelar")
-            }
+            Button(onClick = onDismiss) { Text("Cancelar") }
         }
     )
 }
@@ -317,7 +294,6 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVector(start: Offset, e
     val arrowPath = Path().apply {
         moveTo(start.x, start.y)
         lineTo(end.x, end.y)
-        // Flecha final
         val angle = atan2(end.y - start.y, end.x - start.x)
         val arrowSize = 20f
         lineTo(

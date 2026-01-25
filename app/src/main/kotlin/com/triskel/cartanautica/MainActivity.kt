@@ -108,7 +108,12 @@ fun CartaNauticaScreen() {
                 .pointerInput(vectorMode) {
                     if (vectorMode) {
                         detectTapGestures { tapOffset ->
-                            vectorStart = tapOffset
+                            // Ajuste por zoom y desplazamiento
+                            val actualStart = Offset(
+                                (tapOffset.x - offsetX) / scale,
+                                (tapOffset.y - offsetY) / scale
+                            )
+                            vectorStart = actualStart
                             showVectorDialog = true
                         }
                     }
@@ -178,29 +183,13 @@ fun CartaNauticaScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
-            // 1️⃣ Punto
-            Button(onClick = { showDialog = true }) {
-                Text("•", fontSize = 24.sp)
-            }
-
-            // 2️⃣ Rumbo/Vector
-            Button(onClick = {
-                vectorMode = true
-            }) {
-                Text("→", fontSize = 24.sp)
-            }
-
-            // 3️⃣ Demora
+            Button(onClick = { showDialog = true }) { Text("•", fontSize = 24.sp) }
+            Button(onClick = { vectorMode = true }) { Text("→", fontSize = 24.sp) }
             Button(onClick = { }) { Text("←", fontSize = 24.sp) }
-            // 4️⃣ Vector libre
             Button(onClick = { }) { Text("↝", fontSize = 24.sp) }
-            // 5️⃣ Círculo
             Button(onClick = { }) { Text("○", fontSize = 24.sp) }
-            // 6️⃣ Borrar
             Button(onClick = { }) { Text("B", fontSize = 24.sp) }
-            // 7️⃣ Exportar
             Button(onClick = { }) { Text("P", fontSize = 24.sp) }
-            // 8️⃣ Cerrar
             Button(onClick = { }) { Text("X", fontSize = 24.sp) }
         }
     }
@@ -231,9 +220,9 @@ fun CartaNauticaScreen() {
             onAddVector = { rumbo, distancia ->
                 val start = vectorStart!!
                 val rad = Math.toRadians(rumbo.toDouble())
-                val deltaLat = distancia / 60.0 // millas = minutos de latitud
-                val dx = (sin(rad) * deltaLat * imageWidth / ((LAT_MAX - LAT_MIN))).toFloat()
-                val dy = (-cos(rad) * deltaLat * imageHeight / ((LAT_MAX - LAT_MIN))).toFloat()
+                val deltaLat = distancia / 60.0
+                val dx = (sin(rad) * deltaLat * imageWidth / (LAT_MAX - LAT_MIN)).toFloat()
+                val dy = (-cos(rad) * deltaLat * imageHeight / (LAT_MAX - LAT_MIN)).toFloat()
                 vectors = vectors + Vector(start, Offset(start.x + dx, start.y + dy))
                 showVectorDialog = false
                 vectorStart = null
@@ -243,6 +232,7 @@ fun CartaNauticaScreen() {
     }
 }
 
+// === DIALOGO PUNTO ===
 @Composable
 fun AddPointDialog(
     onDismiss: () -> Unit,
@@ -260,72 +250,30 @@ fun AddPointDialog(
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Latitud")
                 Row {
-                    TextField(
-                        value = latG,
-                        onValueChange = { latG = it },
-                        label = { Text("Grados") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number
-                        )
-                    )
+                    TextField(latG, { latG = it }, label = { Text("Grados") }, modifier = Modifier.weight(1f), singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     Spacer(Modifier.width(8.dp))
-                    TextField(
-                        value = latM,
-                        onValueChange = { latM = it },
-                        label = { Text("Minutos") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number
-                        )
-                    )
+                    TextField(latM, { latM = it }, label = { Text("Minutos") }, modifier = Modifier.weight(1f), singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 }
                 Spacer(Modifier.height(12.dp))
                 Text("Longitud")
                 Row {
-                    TextField(
-                        value = lonG,
-                        onValueChange = { lonG = it },
-                        label = { Text("Grados") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number
-                        )
-                    )
+                    TextField(lonG, { lonG = it }, label = { Text("Grados") }, modifier = Modifier.weight(1f), singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     Spacer(Modifier.width(8.dp))
-                    TextField(
-                        value = lonM,
-                        onValueChange = { lonM = it },
-                        label = { Text("Minutos") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (latG.isNotBlank() && lonG.isNotBlank()) {
-                                    onAddPoint(latG, latM, lonG, lonM)
-                                }
-                            }
-                        )
-                    )
+                    TextField(lonM, { lonM = it }, label = { Text("Minutos") }, modifier = Modifier.weight(1f), singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { if(latG.isNotBlank() && lonG.isNotBlank()) onAddPoint(latG, latM, lonG, lonM) }))
                 }
             }
         },
-        confirmButton = {
-            Button(onClick = { onAddPoint(latG, latM, lonG, lonM) }) { Text("Añadir") }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) { Text("Cancelar") }
-        }
+        confirmButton = { Button(onClick = { onAddPoint(latG, latM, lonG, lonM) }) { Text("Añadir") } },
+        dismissButton = { Button(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
 
+// === DIALOGO VECTOR ===
 @Composable
 fun AddVectorDialog(
     onDismiss: () -> Unit,
@@ -339,35 +287,16 @@ fun AddVectorDialog(
         title = { Text("Añadir vector") },
         text = {
             Row {
-                TextField(
-                    value = rumbo,
-                    onValueChange = { rumbo = it },
-                    label = { Text("Rumbo") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number
-                    )
-                )
+                TextField(rumbo, { rumbo = it }, label = { Text("Rumbo") }, modifier = Modifier.weight(1f), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 Spacer(Modifier.width(8.dp))
-                TextField(
-                    value = distancia,
-                    onValueChange = { distancia = it },
-                    label = { Text("Distancia (millas)") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            val r = rumbo.toIntOrNull() ?: return@KeyboardActions
-                            val d = distancia.toDoubleOrNull() ?: return@KeyboardActions
-                            onAddVector(r, d)
-                        }
-                    )
-                )
+                TextField(distancia, { distancia = it }, label = { Text("Distancia (millas)") }, modifier = Modifier.weight(1f), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        val r = rumbo.toIntOrNull() ?: return@KeyboardActions
+                        val d = distancia.toDoubleOrNull() ?: return@KeyboardActions
+                        onAddVector(r, d)
+                    }))
             }
         },
         confirmButton = {
@@ -377,12 +306,11 @@ fun AddVectorDialog(
                 onAddVector(r, d)
             }) { Text("Validar") }
         },
-        dismissButton = {
-            Button(onClick = onDismiss) { Text("Cancelar") }
-        }
+        dismissButton = { Button(onClick = onDismiss) { Text("Cancelar") } }
     )
 }
 
+// === FUNCION DE DIBUJO VECTOR ===
 fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVector(start: Offset, end: Offset) {
     val arrowPath = Path().apply {
         moveTo(start.x, start.y)

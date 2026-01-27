@@ -5,9 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,191 +21,130 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.triskel.cartanautica.ui.theme.CartaNauticaTheme
+import androidx.compose.ui.res.painterResource
+
 import kotlin.math.*
+
+const val LAT_MAX = 36.3333
+const val LAT_MIN = 35.6667
+const val LON_MIN = 5.1667
+const val LON_MAX = 6.3333
+
+data class Vector(
+    val startLat: Double,
+    val startLon: Double,
+    val endLat: Double,
+    val endLon: Double
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            CartaNauticaTheme {
                 Surface(Modifier.fillMaxSize()) {
-                    MiniCartaVectorial()
+                    MiniVectorScreen()
                 }
             }
         }
     }
 }
 
-data class Vector(
-    val start: Offset,
-    val end: Offset
-)
+// Convertir lat/lon a píxeles
+fun latLonToPixel(lat: Double, lon: Double, w: Float, h: Float): Offset =
+    Offset(
+        ((lon - LON_MIN) / (LON_MAX - LON_MIN) * w).toFloat(),
+        ((LAT_MAX - lat) / (LAT_MAX - LAT_MIN) * h).toFloat()
+    )
+
+// Convertir píxeles a lat/lon
+fun pixelToLatLon(x: Float, y: Float, w: Float, h: Float): Pair<Double, Double> =
+    (LAT_MAX - y / h * (LAT_MAX - LAT_MIN)) to
+            (x / w * (LON_MAX - LON_MIN) + LON_MIN)
 
 @Composable
-fun MiniCartaVectorial() {
-
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-
-    var imageSize by remember { mutableStateOf(Offset.Zero) }
-
+fun MiniVectorScreen() {
     var vectors by remember { mutableStateOf(listOf<Vector>()) }
-
-    var vectorStart by remember { mutableStateOf<Offset?>(null) }
-    var showDialog by remember { mutableStateOf(false) }
+    var imageWidth by remember { mutableStateOf(0f) }
+    var imageHeight by remember { mutableStateOf(0f) }
+    var scale by remember { mutableStateOf(1f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
 
     Box(
-        modifier = Modifier
+        Modifier
             .fillMaxSize()
-            .background(Color.DarkGray)
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     scale *= zoom
-                    offset += pan
+                    offsetX += pan.x
+                    offsetY += pan.y
                 }
             }
             .pointerInput(Unit) {
                 detectTapGestures { tap ->
-                    // 🔑 conversión CORRECTA de pantalla → imagen
-                    val imageX = (tap.x - offset.x) / scale
-                    val imageY = (tap.y - offset.y) / scale
+                    if (imageWidth == 0f || imageHeight == 0f) return@detectTapGestures
+                    // Coordenadas reales en la carta sin zoom ni offset
+                    val x = (tap.x - offsetX) / scale
+                    val y = (tap.y - offsetY) / scale
+                    val (lat, lon) = pixelToLatLon(x, y, imageWidth, imageHeight)
 
-                    vectorStart = Offset(imageX, imageY)
-                    showDialog = true
+                    // Vector fijo rumbo 0°, distancia 7 millas
+                    val rumboRad = Math.toRadians(0.0)
+                    val distanciaMN = 7.0
+                    val deltaLat = distanciaMN / 60.0 * cos(rumboRad)
+                    val deltaLon = distanciaMN / 60.0 * sin(rumboRad) / cos(Math.toRadians(lat))
+                    val endLat = lat + deltaLat
+                    val endLon = lon + deltaLon
+
+                    vectors = vectors + Vector(lat, lon, endLat, endLon)
                 }
-            }
-    ) {
-
-        Box(
-            modifier = Modifier
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = offset.x
-                    translationY = offset.y
-                }
-        ) {
-
-            Image(
-                painter = painterResource(id = R.drawable.carta_estrecho),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .onGloballyPositioned {
-                        imageSize = Offset(
-                            it.size.width.toFloat(),
-                            it.size.height.toFloat()
-                        )
-                    }
-            )
-
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                vectors.forEach { v ->
-                    drawVector(v.start, v.end)
-                }
-            }
-        }
-    }
-
-    if (showDialog && vectorStart != null) {
-        AddVectorDialog(
-            onDismiss = {
-                showDialog = false
-                vectorStart = null
             },
-            onAddVector = { rumbo, distancia ->
-                val start = vectorStart!!
-
-                val rad = Math.toRadians(rumbo.toDouble())
-                val lengthPx = distancia.toFloat() * 10f
-
-                val end = Offset(
-                    x = start.x + cos(rad).toFloat() * lengthPx,
-                    y = start.y + sin(rad).toFloat() * lengthPx
-                )
-
-                vectors = vectors + Vector(start, end)
-
-                showDialog = false
-                vectorStart = null
-            }
+        contentAlignment = Alignment.TopStart
+    ) {
+        Image(
+            painter = painterResource(R.drawable.carta_estrecho),
+            contentDescription = null,
+            contentScale = ContentScale.FillHeight,
+            modifier = Modifier
+                .fillMaxHeight()
+                .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY)
+                .onGloballyPositioned {
+                    imageWidth = it.size.width.toFloat()
+                    imageHeight = it.size.height.toFloat()
+                }
         )
+
+        Canvas(Modifier.fillMaxSize()) {
+            vectors.forEach { vector ->
+                val start = latLonToPixel(vector.startLat, vector.startLon, imageWidth, imageHeight)
+                val end = latLonToPixel(vector.endLat, vector.endLon, imageWidth, imageHeight)
+                drawVector(
+                    Offset(start.x * scale + offsetX, start.y * scale + offsetY),
+                    Offset(end.x * scale + offsetX, end.y * scale + offsetY)
+                )
+            }
+        }
     }
 }
 
-@Composable
-fun AddVectorDialog(
-    onDismiss: () -> Unit,
-    onAddVector: (Int, Double) -> Unit
-) {
-    var rumbo by remember { mutableStateOf("") }
-    var distancia by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Añadir vector") },
-        text = {
-            Column {
-                TextField(
-                    value = rumbo,
-                    onValueChange = { rumbo = it },
-                    label = { Text("Rumbo (°)") },
-                    singleLine = true
-                )
-                Spacer(Modifier.height(8.dp))
-                TextField(
-                    value = distancia,
-                    onValueChange = { distancia = it },
-                    label = { Text("Distancia") },
-                    singleLine = true
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                val r = rumbo.toIntOrNull() ?: return@Button
-                val d = distancia.toDoubleOrNull() ?: return@Button
-                onAddVector(r, d)
-            }) {
-                Text("OK")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
-}
-
-fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVector(
-    start: Offset,
-    end: Offset
-) {
-    val arrowSize = 20f
-    val angle = atan2(end.y - start.y, end.x - start.x)
-
-    val path = Path().apply {
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVector(start: Offset, end: Offset) {
+    val arrowPath = Path().apply {
         moveTo(start.x, start.y)
         lineTo(end.x, end.y)
-
+        val angle = atan2(end.y - start.y, end.x - start.x)
+        val arrowSize = 20f
         lineTo(
-            end.x - arrowSize * cos(angle - PI / 6).toFloat(),
-            end.y - arrowSize * sin(angle - PI / 6).toFloat()
+            end.x - arrowSize * cos(angle - PI.toFloat() / 6),
+            end.y - arrowSize * sin(angle - PI.toFloat() / 6)
         )
-
         moveTo(end.x, end.y)
         lineTo(
-            end.x - arrowSize * cos(angle + PI / 6).toFloat(),
-            end.y - arrowSize * sin(angle + PI / 6).toFloat()
+            end.x - arrowSize * cos(angle + PI.toFloat() / 6),
+            end.y - arrowSize * sin(angle + PI.toFloat() / 6)
         )
     }
-
-    drawPath(
-        path = path,
-        color = Color.Cyan,
-        style = Stroke(width = 3f, cap = StrokeCap.Round)
-    )
+    drawPath(arrowPath, Color.Blue, style = Stroke(width = 3f, cap = StrokeCap.Round))
 }

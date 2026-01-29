@@ -34,7 +34,8 @@ class MainActivity : AppCompatActivity() {
                 val rumbo = editRumbo.text.toString().toFloatOrNull()
                 val distancia = editDistancia.text.toString().toFloatOrNull()
                 if (rumbo != null && distancia != null) {
-                    cartaView.setRumboDistancia(rumbo, distancia)
+                    cartaView.prepararVector(rumbo, distancia)
+
                 }
             }
             .setNegativeButton("Cancelar", null)

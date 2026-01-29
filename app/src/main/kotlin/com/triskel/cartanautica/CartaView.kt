@@ -3,117 +3,98 @@ package com.triskel.cartanautica
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
-import android.view.View
-import android.view.ViewConfiguration
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
+import android.view.*
+import kotlin.math.*
 
 class CartaView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    // ---------- Fondo ----------
+    // ---------- Carta ----------
     private var cartaBitmap: Bitmap? = null
 
-    // ---------- Zoom y desplazamiento ----------
-    private val transformMatrix = Matrix()
+    // ---------- Transformación ----------
+    private val matrix = Matrix()
     private val inverseMatrix = Matrix()
     private var scaleFactor = 1f
     private var offsetX = 0f
     private var offsetY = 0f
 
-    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            scaleFactor *= detector.scaleFactor
-            scaleFactor = scaleFactor.coerceIn(0.5f, 5f)
-            invalidateMatrix()
-            return true
-        }
-    })
-
+    // ---------- Control táctil ----------
     private var lastX = 0f
     private var lastY = 0f
-    private var dragging = false
-    private var downX = 0f
-    private var downY = 0f
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+    private var isDragging = false
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
+    // ---------- Zoom centrado ----------
+    private val scaleDetector = ScaleGestureDetector(
+        context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val prevScale = scaleFactor
+                scaleFactor *= detector.scaleFactor
+                scaleFactor = scaleFactor.coerceIn(0.5f, 5f)
+
+                val scaleChange = scaleFactor / prevScale
+                offsetX = detector.focusX - scaleChange * (detector.focusX - offsetX)
+                offsetY = detector.focusY - scaleChange * (detector.focusY - offsetY)
+
+                invalidateMatrix()
+                return true
+            }
+        }
+    )
 
     // ---------- Vectores ----------
     private val vectors = mutableListOf<Pair<PointF, PointF>>()
+
     private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         strokeWidth = 5f
         style = Paint.Style.STROKE
     }
 
-    // Datos introducidos por el usuario
-    private var userRumbo: Float? = null // grados
-    private var userDistancia: Float? = null // millas
+    // ---------- Control de creación ----------
+    private var pendingVector = false
+    private var rumboDeg = 0f
+    private var distanciaMillas = 0f
 
-    // Escala para convertir millas a píxeles (ajustable según la carta)
-    private var pixelsPerMile = 10f
+    // ---------- Escala náutica ----------
+    // AJUSTABLE: calibrar con la carta real
+    private val pixelsPerMile = 80f   // ↓ reducido (antes 120)
 
-    // ---------- Inicialización ----------
     init {
         post {
             val options = BitmapFactory.Options().apply { inScaled = false }
-            cartaBitmap = BitmapFactory.decodeResource(resources, R.drawable.carta_estrecho, options)
-            fitCartaToView()
+            cartaBitmap = BitmapFactory.decodeResource(
+                resources,
+                R.drawable.carta_estrecho,
+                options
+            )
+            centerCarta()
         }
     }
 
-    private fun fitCartaToView() {
-        cartaBitmap?.let {
-            val scaleX = width.toFloat() / it.width
-            val scaleY = height.toFloat() / it.height
-            scaleFactor = minOf(scaleX, scaleY)
-            offsetX = (width - it.width * scaleFactor) / 2f
-            offsetY = (height - it.height * scaleFactor) / 2f
-            invalidateMatrix()
-        }
-    }
-
-    // ---------- Dibujado ----------
+    // ---------- Dibujo ----------
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
         canvas.save()
-        canvas.concat(transformMatrix)
+        canvas.concat(matrix)
 
-        cartaBitmap?.let { bmp ->
-            canvas.drawBitmap(bmp, 0f, 0f, null)
+        cartaBitmap?.let {
+            canvas.drawBitmap(it, 0f, 0f, null)
         }
 
         for ((start, end) in vectors) {
-            canvas.drawLine(start.x, start.y, end.x, end.y, vectorPaint)
             drawArrow(canvas, start, end)
         }
 
         canvas.restore()
     }
 
-    private fun drawArrow(canvas: Canvas, start: PointF, end: PointF) {
-        val arrowSize = 20f
-        val angle = kotlin.math.atan2((end.y - start.y), (end.x - start.x))
-        val sin = sin(angle)
-        val cos = cos(angle)
-        val p1 = PointF(
-            end.x - arrowSize * cos + arrowSize/2 * sin,
-            end.y - arrowSize * sin - arrowSize/2 * cos
-        )
-        val p2 = PointF(
-            end.x - arrowSize * cos - arrowSize/2 * sin,
-            end.y - arrowSize * sin + arrowSize/2 * cos
-        )
-        canvas.drawLine(end.x, end.y, p1.x, p1.y, vectorPaint)
-        canvas.drawLine(end.x, end.y, p2.x, p2.y, vectorPaint)
-    }
-
-    // ---------- Eventos táctiles ----------
+    // ---------- Eventos ----------
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
 
@@ -121,69 +102,102 @@ class CartaView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 lastX = event.x
                 lastY = event.y
-                downX = event.x
-                downY = event.y
-                dragging = false
+                isDragging = false
             }
 
             MotionEvent.ACTION_MOVE -> {
                 if (!scaleDetector.isInProgress) {
                     val dx = event.x - lastX
                     val dy = event.y - lastY
-                    offsetX += dx
-                    offsetY += dy
+
+                    if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
+                        offsetX += dx
+                        offsetY += dy
+                        isDragging = true
+                        invalidateMatrix()
+                    }
+
                     lastX = event.x
                     lastY = event.y
-                    dragging = dragging || distance(downX, downY, lastX, lastY) > touchSlop
-                    invalidateMatrix()
                 }
             }
 
             MotionEvent.ACTION_UP -> {
-                if (!dragging && userRumbo != null && userDistancia != null) {
-                    addVectorAtTouch(event.x, event.y)
+                if (!isDragging && pendingVector) {
+                    crearVector(event.x, event.y)
+                    pendingVector = false
                 }
             }
         }
-
         return true
     }
 
-    private fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
-        val dx = x2 - x1
-        val dy = y2 - y1
-        return sqrt(dx*dx + dy*dy)
+    // ---------- API pública ----------
+    fun prepararVector(rumbo: Float, distancia: Float) {
+        rumboDeg = rumbo
+        distanciaMillas = distancia
+        pendingVector = true
+    }
+
+    // ---------- Lógica ----------
+    private fun crearVector(x: Float, y: Float) {
+        inverseMatrix.reset()
+        matrix.invert(inverseMatrix)
+
+        val pt = floatArrayOf(x, y)
+        inverseMatrix.mapPoints(pt)
+
+        val start = PointF(pt[0], pt[1])
+
+        val angleRad = Math.toRadians(rumboDeg.toDouble() - 90)
+        val lengthPx = distanciaMillas * pixelsPerMile
+
+        val end = PointF(
+            start.x + lengthPx * cos(angleRad).toFloat(),
+            start.y + lengthPx * sin(angleRad).toFloat()
+        )
+
+        vectors.add(start to end)
+        invalidate()
+    }
+
+    // ---------- Flecha ----------
+    private fun drawArrow(canvas: Canvas, start: PointF, end: PointF) {
+        canvas.drawLine(start.x, start.y, end.x, end.y, vectorPaint)
+
+        val arrowLength = 25f
+        val arrowAngle = Math.toRadians(25.0)
+
+        val angle = atan2(end.y - start.y, end.x - start.x)
+
+        val x1 = end.x - arrowLength * cos(angle - arrowAngle).toFloat()
+        val y1 = end.y - arrowLength * sin(angle - arrowAngle).toFloat()
+
+        val x2 = end.x - arrowLength * cos(angle + arrowAngle).toFloat()
+        val y2 = end.y - arrowLength * sin(angle + arrowAngle).toFloat()
+
+        canvas.drawLine(end.x, end.y, x1, y1, vectorPaint)
+        canvas.drawLine(end.x, end.y, x2, y2, vectorPaint)
     }
 
     private fun invalidateMatrix() {
-        transformMatrix.reset()
-        transformMatrix.postScale(scaleFactor, scaleFactor)
-        transformMatrix.postTranslate(offsetX, offsetY)
+        matrix.reset()
+        matrix.postScale(scaleFactor, scaleFactor)
+        matrix.postTranslate(offsetX, offsetY)
         invalidate()
     }
 
-    private fun addVectorAtTouch(x: Float, y: Float) {
-        inverseMatrix.reset()
-        transformMatrix.invert(inverseMatrix)
-        val touchPoint = floatArrayOf(x, y)
-        inverseMatrix.mapPoints(touchPoint)
+    private fun centerCarta() {
+        cartaBitmap?.let {
+            scaleFactor = min(
+                width.toFloat() / it.width,
+                height.toFloat() / it.height
+            )
 
-        val startX = touchPoint[0]
-        val startY = touchPoint[1]
+            offsetX = (width - it.width * scaleFactor) / 2f
+            offsetY = (height - it.height * scaleFactor) / 2f
 
-        // Calculamos vector usando rumbo y distancia
-        val angleRad = Math.toRadians(userRumbo!!.toDouble())
-        val distancePx = userDistancia!! * pixelsPerMile
-
-        val endX = startX + distancePx * sin(angleRad).toFloat()
-        val endY = startY - distancePx * cos(angleRad).toFloat() // coordenadas Y invertidas
-        vectors.add(PointF(startX, startY) to PointF(endX, endY))
-        invalidate()
-    }
-
-    // ---------- Setters para datos ----------
-    fun setRumboDistancia(rumbo: Float, distancia: Float) {
-        userRumbo = rumbo
-        userDistancia = distancia
+            invalidateMatrix()
+        }
     }
 }

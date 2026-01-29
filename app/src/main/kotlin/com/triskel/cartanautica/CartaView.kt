@@ -6,24 +6,43 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.ViewConfiguration
 import kotlin.math.cos
-import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 class CartaView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
+    // ---------- Fondo ----------
     private var cartaBitmap: Bitmap? = null
 
-    private val matrix = Matrix()
-    private val inverseMatrix = Matrix()  // ⚡ matriz inversa para los taps
-
+    // ---------- Zoom y desplazamiento ----------
+    private val transformMatrix = Matrix()
+    private val inverseMatrix = Matrix()
     private var scaleFactor = 1f
     private var offsetX = 0f
     private var offsetY = 0f
 
+    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            scaleFactor *= detector.scaleFactor
+            scaleFactor = scaleFactor.coerceIn(0.5f, 5f)
+            invalidateMatrix()
+            return true
+        }
+    })
+
+    private var lastX = 0f
+    private var lastY = 0f
+    private var dragging = false
+    private var downX = 0f
+    private var downY = 0f
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+
+    // ---------- Vectores ----------
     private val vectors = mutableListOf<Pair<PointF, PointF>>()
     private val vectorLength = 200f
     private val vectorAngleRad = Math.toRadians(45.0).toFloat()
@@ -31,65 +50,41 @@ class CartaView @JvmOverloads constructor(
     private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         strokeWidth = 5f
+        style = Paint.Style.STROKE
     }
 
-    private val scaleDetector = ScaleGestureDetector(
-        context,
-        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                scaleFactor *= detector.scaleFactor
-                scaleFactor = scaleFactor.coerceIn(0.5f, 5f)
-                invalidate()
-                return true
-            }
+    // ---------- Inicialización ----------
+    init {
+        // Cargar bitmap grande de forma escalable
+        post {
+            val options = BitmapFactory.Options().apply { inScaled = false }
+            val bmp = BitmapFactory.decodeResource(resources, R.drawable.carta_estrecho, options)
+            cartaBitmap = bmp
+            invalidate()
         }
-    )
-
-    private var lastX = 0f
-    private var lastY = 0f
-    private var dragging = false
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        if (w == 0 || h == 0) return
-
-        val options = BitmapFactory.Options().apply { inScaled = false }
-        val original = BitmapFactory.decodeResource(resources, R.drawable.carta_estrecho, options)
-
-        val scale = min(w.toFloat() / original.width, h.toFloat() / original.height)
-        val scaledWidth = (original.width * scale).toInt()
-        val scaledHeight = (original.height * scale).toInt()
-
-        cartaBitmap = Bitmap.createScaledBitmap(original, scaledWidth, scaledHeight, true)
-        original.recycle()
-
-        offsetX = (w - scaledWidth) / 2f
-        offsetY = (h - scaledHeight) / 2f
     }
 
+    // ---------- Dibujado ----------
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val bmp = cartaBitmap ?: return
-
-        matrix.reset()
-        matrix.postScale(scaleFactor, scaleFactor)
-        matrix.postTranslate(offsetX, offsetY)
-
-        inverseMatrix.reset()
-        matrix.invert(inverseMatrix)  // ⚡ recalcular inversa cada draw
 
         canvas.save()
-        canvas.concat(matrix)
+        canvas.concat(transformMatrix)
 
-        canvas.drawBitmap(bmp, 0f, 0f, null)
+        cartaBitmap?.let {
+            // Escalar al tamaño de la vista si es demasiado grande
+            val scaled = Bitmap.createScaledBitmap(it, width, height, true)
+            canvas.drawBitmap(scaled, 0f, 0f, null)
+        }
 
-        for ((s, e) in vectors) {
-            canvas.drawLine(s.x, s.y, e.x, e.y, vectorPaint)
+        for ((start, end) in vectors) {
+            canvas.drawLine(start.x, start.y, end.x, end.y, vectorPaint)
         }
 
         canvas.restore()
     }
 
+    // ---------- Eventos táctiles ----------
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
 
@@ -97,41 +92,59 @@ class CartaView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 lastX = event.x
                 lastY = event.y
+                downX = event.x
+                downY = event.y
                 dragging = false
             }
+
             MotionEvent.ACTION_MOVE -> {
                 if (!scaleDetector.isInProgress) {
-                    offsetX += event.x - lastX
-                    offsetY += event.y - lastY
+                    val dx = event.x - lastX
+                    val dy = event.y - lastY
+                    offsetX += dx
+                    offsetY += dy
                     lastX = event.x
                     lastY = event.y
-                    dragging = true
-                    invalidate()
+
+                    dragging = dragging || distance(downX, downY, lastX, lastY) > touchSlop
+                    invalidateMatrix()
                 }
             }
+
             MotionEvent.ACTION_UP -> {
-                if (!dragging) {
-                    addVector(event.x, event.y)
-                }
+                if (!dragging) addVectorAtTouch(event.x, event.y)
             }
         }
+
         return true
     }
 
-    private fun addVector(x: Float, y: Float) {
-        val p = floatArrayOf(x, y)
-        inverseMatrix.mapPoints(p)  // ⚡ transformar tap a coordenadas de bitmap
+    private fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val dx = x2 - x1
+        val dy = y2 - y1
+        return sqrt(dx*dx + dy*dy)
+    }
 
-        val startX = p[0]
-        val startY = p[1]
-        val endX = startX + vectorLength * cos(vectorAngleRad)
-        val endY = startY + vectorLength * sin(vectorAngleRad)
+    private fun invalidateMatrix() {
+        transformMatrix.reset()
+        transformMatrix.postScale(scaleFactor, scaleFactor)
+        transformMatrix.postTranslate(offsetX, offsetY)
+        invalidate()
+    }
+
+    private fun addVectorAtTouch(x: Float, y: Float) {
+        inverseMatrix.reset()
+        transformMatrix.invert(inverseMatrix)
+        val touchPoint = floatArrayOf(x, y)
+        inverseMatrix.mapPoints(touchPoint)
+
+        val startX = touchPoint[0]
+        val startY = touchPoint[1]
+
+        val endX = startX + vectorLength * cos(vectorAngleRad.toDouble()).toFloat()
+        val endY = startY + vectorLength * sin(vectorAngleRad.toDouble()).toFloat()
 
         vectors.add(PointF(startX, startY) to PointF(endX, endY))
         invalidate()
     }
 }
-
-
-
-

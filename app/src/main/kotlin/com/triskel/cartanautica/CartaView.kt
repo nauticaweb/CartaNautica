@@ -44,23 +44,36 @@ class CartaView @JvmOverloads constructor(
 
     // ---------- Vectores ----------
     private val vectors = mutableListOf<Pair<PointF, PointF>>()
-    private val vectorLength = 200f
-    private val vectorAngleRad = Math.toRadians(45.0).toFloat()
-
     private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         strokeWidth = 5f
         style = Paint.Style.STROKE
     }
 
+    // Datos introducidos por el usuario
+    private var userRumbo: Float? = null // grados
+    private var userDistancia: Float? = null // millas
+
+    // Escala para convertir millas a píxeles (ajustable según la carta)
+    private var pixelsPerMile = 10f
+
     // ---------- Inicialización ----------
     init {
-        // Cargar bitmap grande de forma escalable
         post {
             val options = BitmapFactory.Options().apply { inScaled = false }
-            val bmp = BitmapFactory.decodeResource(resources, R.drawable.carta_estrecho, options)
-            cartaBitmap = bmp
-            invalidate()
+            cartaBitmap = BitmapFactory.decodeResource(resources, R.drawable.carta_estrecho, options)
+            fitCartaToView()
+        }
+    }
+
+    private fun fitCartaToView() {
+        cartaBitmap?.let {
+            val scaleX = width.toFloat() / it.width
+            val scaleY = height.toFloat() / it.height
+            scaleFactor = minOf(scaleX, scaleY)
+            offsetX = (width - it.width * scaleFactor) / 2f
+            offsetY = (height - it.height * scaleFactor) / 2f
+            invalidateMatrix()
         }
     }
 
@@ -71,17 +84,33 @@ class CartaView @JvmOverloads constructor(
         canvas.save()
         canvas.concat(transformMatrix)
 
-        cartaBitmap?.let {
-            // Escalar al tamaño de la vista si es demasiado grande
-            val scaled = Bitmap.createScaledBitmap(it, width, height, true)
-            canvas.drawBitmap(scaled, 0f, 0f, null)
+        cartaBitmap?.let { bmp ->
+            canvas.drawBitmap(bmp, 0f, 0f, null)
         }
 
         for ((start, end) in vectors) {
             canvas.drawLine(start.x, start.y, end.x, end.y, vectorPaint)
+            drawArrow(canvas, start, end)
         }
 
         canvas.restore()
+    }
+
+    private fun drawArrow(canvas: Canvas, start: PointF, end: PointF) {
+        val arrowSize = 20f
+        val angle = kotlin.math.atan2((end.y - start.y), (end.x - start.x))
+        val sin = sin(angle)
+        val cos = cos(angle)
+        val p1 = PointF(
+            end.x - arrowSize * cos + arrowSize/2 * sin,
+            end.y - arrowSize * sin - arrowSize/2 * cos
+        )
+        val p2 = PointF(
+            end.x - arrowSize * cos - arrowSize/2 * sin,
+            end.y - arrowSize * sin + arrowSize/2 * cos
+        )
+        canvas.drawLine(end.x, end.y, p1.x, p1.y, vectorPaint)
+        canvas.drawLine(end.x, end.y, p2.x, p2.y, vectorPaint)
     }
 
     // ---------- Eventos táctiles ----------
@@ -105,14 +134,15 @@ class CartaView @JvmOverloads constructor(
                     offsetY += dy
                     lastX = event.x
                     lastY = event.y
-
                     dragging = dragging || distance(downX, downY, lastX, lastY) > touchSlop
                     invalidateMatrix()
                 }
             }
 
             MotionEvent.ACTION_UP -> {
-                if (!dragging) addVectorAtTouch(event.x, event.y)
+                if (!dragging && userRumbo != null && userDistancia != null) {
+                    addVectorAtTouch(event.x, event.y)
+                }
             }
         }
 
@@ -141,10 +171,19 @@ class CartaView @JvmOverloads constructor(
         val startX = touchPoint[0]
         val startY = touchPoint[1]
 
-        val endX = startX + vectorLength * cos(vectorAngleRad.toDouble()).toFloat()
-        val endY = startY + vectorLength * sin(vectorAngleRad.toDouble()).toFloat()
+        // Calculamos vector usando rumbo y distancia
+        val angleRad = Math.toRadians(userRumbo!!.toDouble())
+        val distancePx = userDistancia!! * pixelsPerMile
 
+        val endX = startX + distancePx * sin(angleRad).toFloat()
+        val endY = startY - distancePx * cos(angleRad).toFloat() // coordenadas Y invertidas
         vectors.add(PointF(startX, startY) to PointF(endX, endY))
         invalidate()
+    }
+
+    // ---------- Setters para datos ----------
+    fun setRumboDistancia(rumbo: Float, distancia: Float) {
+        userRumbo = rumbo
+        userDistancia = distancia
     }
 }

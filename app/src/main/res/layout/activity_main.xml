@@ -24,4 +24,14 @@
         android:layout_gravity="end|top"
         android:layout_marginTop="64dp"
         android:layout_marginEnd="16dp"/>
+
+    <Button
+        android:id="@+id/btnVectorLibre"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Vector libre"
+        android:layout_gravity="end|top"
+        android:layout_marginTop="112dp"
+        android:layout_marginEnd="16dp"/>
+
 </FrameLayout>

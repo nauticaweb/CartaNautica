@@ -26,22 +26,21 @@ class CartaView @JvmOverloads constructor(
     private var lastY = 0f
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
-    // ---------- Drag preciso en carta ----------
+    // ---------- Drag preciso ----------
     private var dragStartCartaX = 0f
     private var dragStartCartaY = 0f
 
-    // ---------- Zoom centrado ----------
+    // ---------- Zoom ----------
     private val scaleDetector = ScaleGestureDetector(
         context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val prevScale = scaleFactor
-                scaleFactor *= detector.scaleFactor
-                scaleFactor = scaleFactor.coerceIn(0.5f, 5f)
+                val prev = scaleFactor
+                scaleFactor = (scaleFactor * detector.scaleFactor).coerceIn(0.5f, 5f)
 
-                val scaleChange = scaleFactor / prevScale
-                offsetX = detector.focusX - scaleChange * (detector.focusX - offsetX)
-                offsetY = detector.focusY - scaleChange * (detector.focusY - offsetY)
+                val factor = scaleFactor / prev
+                offsetX = detector.focusX - factor * (detector.focusX - offsetX)
+                offsetY = detector.focusY - factor * (detector.focusY - offsetY)
 
                 invalidateMatrix()
                 return true
@@ -50,10 +49,7 @@ class CartaView @JvmOverloads constructor(
     )
 
     // ---------- Vectores ----------
-    data class VectorNautico(
-        val start: PointF,
-        val end: PointF
-    )
+    data class VectorNautico(val start: PointF, val end: PointF)
 
     private val vectors = mutableListOf<VectorNautico>()
     private var selectedVector: VectorNautico? = null
@@ -61,30 +57,30 @@ class CartaView @JvmOverloads constructor(
     private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         strokeWidth = 5f
-        style = Paint.Style.STROKE
     }
 
     private val selectedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.YELLOW
         strokeWidth = 7f
-        style = Paint.Style.STROKE
     }
 
-    // ---------- Creación controlada ----------
+    // ---------- Vector por rumbo ----------
     private var pendingVector = false
     private var rumboDeg = 0f
     private var distanciaMillas = 0f
-
-    // ---------- Escala náutica ----------
     private val pixelsPerMile = 120f
+
+    // ---------- Vector libre con dedo ----------
+    private var modoVectorLibre = false
+    private var vectorLibreInicio: PointF? = null
+    private var vectorLibrePreview: VectorNautico? = null
 
     init {
         post {
-            val options = BitmapFactory.Options().apply { inScaled = false }
             cartaBitmap = BitmapFactory.decodeResource(
                 resources,
                 R.drawable.carta_estrecho,
-                options
+                BitmapFactory.Options().apply { inScaled = false }
             )
             centerCarta()
         }
@@ -97,20 +93,23 @@ class CartaView @JvmOverloads constructor(
         canvas.save()
         canvas.concat(matrix)
 
-        cartaBitmap?.let {
-            canvas.drawBitmap(it, 0f, 0f, null)
-        }
+        cartaBitmap?.let { canvas.drawBitmap(it, 0f, 0f, null) }
 
         for (v in vectors) {
-            val paint = if (v == selectedVector) selectedPaint else vectorPaint
-            canvas.drawLine(v.start.x, v.start.y, v.end.x, v.end.y, paint)
-            drawArrow(canvas, v.start, v.end, paint)
+            val p = if (v == selectedVector) selectedPaint else vectorPaint
+            canvas.drawLine(v.start.x, v.start.y, v.end.x, v.end.y, p)
+            drawArrow(canvas, v.start, v.end, p)
+        }
+
+        vectorLibrePreview?.let {
+            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, vectorPaint)
+            drawArrow(canvas, it.start, it.end, vectorPaint)
         }
 
         canvas.restore()
     }
 
-    // ---------- Eventos ----------
+    // ---------- Touch ----------
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
 
@@ -120,55 +119,58 @@ class CartaView @JvmOverloads constructor(
                 lastX = event.x
                 lastY = event.y
 
-                val touchedVector = findVectorAt(event.x, event.y)
-                selectedVector = touchedVector
-
-                if (touchedVector != null) {
-                    inverseMatrix.reset()
-                    matrix.invert(inverseMatrix)
-                    val pt = floatArrayOf(event.x, event.y)
-                    inverseMatrix.mapPoints(pt)
-                    dragStartCartaX = pt[0]
-                    dragStartCartaY = pt[1]
+                if (modoVectorLibre) {
+                    vectorLibreInicio = screenToCarta(event.x, event.y)
+                    vectorLibrePreview = null
+                    invalidate()
+                    return true
                 }
 
+                selectedVector = findVectorAt(event.x, event.y)
+                selectedVector?.let {
+                    val pt = screenToCarta(event.x, event.y)
+                    dragStartCartaX = pt.x
+                    dragStartCartaY = pt.y
+                }
                 invalidate()
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (modoVectorLibre && vectorLibreInicio != null) {
+                    val end = screenToCarta(event.x, event.y)
+                    vectorLibrePreview = VectorNautico(vectorLibreInicio!!, end)
+                    invalidate()
+                    return true
+                }
+
                 if (selectedVector != null) {
-                    inverseMatrix.reset()
-                    matrix.invert(inverseMatrix)
-
-                    val pt = floatArrayOf(event.x, event.y)
-                    inverseMatrix.mapPoints(pt)
-
-                    val dx = pt[0] - dragStartCartaX
-                    val dy = pt[1] - dragStartCartaY
-
+                    val pt = screenToCarta(event.x, event.y)
+                    val dx = pt.x - dragStartCartaX
+                    val dy = pt.y - dragStartCartaY
                     selectedVector!!.start.offset(dx, dy)
                     selectedVector!!.end.offset(dx, dy)
-
-                    dragStartCartaX = pt[0]
-                    dragStartCartaY = pt[1]
-
+                    dragStartCartaX = pt.x
+                    dragStartCartaY = pt.y
                     invalidate()
                 } else if (!scaleDetector.isInProgress) {
-                    val dx = event.x - lastX
-                    val dy = event.y - lastY
-
-                    if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
-                        offsetX += dx
-                        offsetY += dy
-                        invalidateMatrix()
-                    }
-
+                    offsetX += event.x - lastX
+                    offsetY += event.y - lastY
+                    invalidateMatrix()
                     lastX = event.x
                     lastY = event.y
                 }
             }
 
             MotionEvent.ACTION_UP -> {
+                if (modoVectorLibre && vectorLibrePreview != null) {
+                    vectors.add(vectorLibrePreview!!)
+                    vectorLibrePreview = null
+                    vectorLibreInicio = null
+                    modoVectorLibre = false
+                    invalidate()
+                    return true
+                }
+
                 if (pendingVector) {
                     crearVector(event.x, event.y)
                     pendingVector = false
@@ -178,11 +180,19 @@ class CartaView @JvmOverloads constructor(
         return true
     }
 
-    // ---------- API pública ----------
+    // ---------- API ----------
     fun prepararVector(rumbo: Float, distancia: Float) {
         rumboDeg = rumbo
         distanciaMillas = distancia
         pendingVector = true
+    }
+
+    fun activarVectorLibre() {
+        modoVectorLibre = true
+        vectorLibreInicio = null
+        vectorLibrePreview = null
+        selectedVector = null
+        invalidate()
     }
 
     fun borrarVectorSeleccionado() {
@@ -195,37 +205,31 @@ class CartaView @JvmOverloads constructor(
 
     // ---------- Lógica ----------
     private fun crearVector(x: Float, y: Float) {
-        inverseMatrix.reset()
-        matrix.invert(inverseMatrix)
-
-        val pt = floatArrayOf(x, y)
-        inverseMatrix.mapPoints(pt)
-
-        val start = PointF(pt[0], pt[1])
-        val angleRad = Math.toRadians(rumboDeg.toDouble() - 90)
-        val lengthPx = distanciaMillas * pixelsPerMile
+        val start = screenToCarta(x, y)
+        val angle = Math.toRadians(rumboDeg.toDouble() - 90)
+        val len = distanciaMillas * pixelsPerMile
 
         val end = PointF(
-            start.x + lengthPx * cos(angleRad).toFloat(),
-            start.y + lengthPx * sin(angleRad).toFloat()
+            start.x + len * cos(angle).toFloat(),
+            start.y + len * sin(angle).toFloat()
         )
 
         vectors.add(VectorNautico(start, end))
         invalidate()
     }
 
-    private fun findVectorAt(x: Float, y: Float): VectorNautico? {
+    private fun screenToCarta(x: Float, y: Float): PointF {
         inverseMatrix.reset()
         matrix.invert(inverseMatrix)
-
         val pt = floatArrayOf(x, y)
         inverseMatrix.mapPoints(pt)
-        val touch = PointF(pt[0], pt[1])
+        return PointF(pt[0], pt[1])
+    }
 
-        val tolerance = 30f
-
-        return vectors.lastOrNull { v ->
-            distancePointToSegment(touch.x, touch.y, v.start, v.end) <= tolerance
+    private fun findVectorAt(x: Float, y: Float): VectorNautico? {
+        val t = screenToCarta(x, y)
+        return vectors.lastOrNull {
+            distancePointToSegment(t.x, t.y, it.start, it.end) <= 30f
         }
     }
 
@@ -234,27 +238,19 @@ class CartaView @JvmOverloads constructor(
         val dy = b.y - a.y
         val len2 = dx * dx + dy * dy
         if (len2 == 0f) return hypot(px - a.x, py - a.y)
-
         var t = ((px - a.x) * dx + (py - a.y) * dy) / len2
         t = t.coerceIn(0f, 1f)
-
-        val projX = a.x + t * dx
-        val projY = a.y + t * dy
-        return hypot(px - projX, py - projY)
+        val x = a.x + t * dx
+        val y = a.y + t * dy
+        return hypot(px - x, py - y)
     }
 
-    private fun drawArrow(canvas: Canvas, start: PointF, end: PointF, paint: Paint) {
-        val angle = atan2(end.y - start.y, end.x - start.x)
-        val arrowLength = 25f
-        val arrowAngle = Math.toRadians(25.0)
-
-        val x1 = end.x - arrowLength * cos(angle - arrowAngle).toFloat()
-        val y1 = end.y - arrowLength * sin(angle - arrowAngle).toFloat()
-        val x2 = end.x - arrowLength * cos(angle + arrowAngle).toFloat()
-        val y2 = end.y - arrowLength * sin(angle + arrowAngle).toFloat()
-
-        canvas.drawLine(end.x, end.y, x1, y1, paint)
-        canvas.drawLine(end.x, end.y, x2, y2, paint)
+    private fun drawArrow(c: Canvas, s: PointF, e: PointF, p: Paint) {
+        val ang = atan2(e.y - s.y, e.x - s.x)
+        val l = 25f
+        val a = Math.toRadians(25.0)
+        c.drawLine(e.x, e.y, e.x - l * cos(ang - a).toFloat(), e.y - l * sin(ang - a).toFloat(), p)
+        c.drawLine(e.x, e.y, e.x - l * cos(ang + a).toFloat(), e.y - l * sin(ang + a).toFloat(), p)
     }
 
     private fun invalidateMatrix() {
@@ -266,12 +262,9 @@ class CartaView @JvmOverloads constructor(
 
     private fun centerCarta() {
         cartaBitmap?.let {
-            scaleFactor = min(
-                width.toFloat() / it.width,
-                height.toFloat() / it.height
-            )
-            offsetX = (width - it.width * scaleFactor) / 2f
-            offsetY = (height - it.height * scaleFactor) / 2f
+            scaleFactor = min(width / it.width.toFloat(), height / it.height.toFloat())
+            offsetX = (width - it.width * scaleFactor) / 2
+            offsetY = (height - it.height * scaleFactor) / 2
             invalidateMatrix()
         }
     }

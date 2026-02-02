@@ -18,6 +18,7 @@ class MainActivity : AppCompatActivity() {
 
         val btnAgregar = findViewById<Button>(R.id.btnAgregar)
         val btnBorrar = findViewById<Button>(R.id.btnBorrar)
+        val btnVectorLibre = findViewById<Button>(R.id.btnVectorLibre)
 
         btnAgregar.setOnClickListener {
             showRumboDistanciaDialog()
@@ -25,6 +26,10 @@ class MainActivity : AppCompatActivity() {
 
         btnBorrar.setOnClickListener {
             cartaView.borrarVectorSeleccionado()
+        }
+
+        btnVectorLibre.setOnClickListener {
+            cartaView.activarVectorLibre()
         }
     }
 
@@ -47,4 +52,3 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 }
-

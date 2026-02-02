@@ -24,7 +24,6 @@ class CartaView @JvmOverloads constructor(
     // ---------- Control táctil ----------
     private var lastX = 0f
     private var lastY = 0f
-    private var isDragging = false
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
     // ---------- Drag preciso en carta ----------
@@ -118,13 +117,13 @@ class CartaView @JvmOverloads constructor(
         when (event.actionMasked) {
 
             MotionEvent.ACTION_DOWN -> {
-                isDragging = false
                 lastX = event.x
                 lastY = event.y
 
-                selectedVector = findVectorAt(event.x, event.y)
+                val touchedVector = findVectorAt(event.x, event.y)
+                selectedVector = touchedVector
 
-                if (selectedVector != null) {
+                if (touchedVector != null) {
                     inverseMatrix.reset()
                     matrix.invert(inverseMatrix)
                     val pt = floatArrayOf(event.x, event.y)
@@ -170,11 +169,10 @@ class CartaView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP -> {
-                if (!isDragging && pendingVector) {
+                if (pendingVector) {
                     crearVector(event.x, event.y)
                     pendingVector = false
                 }
-                selectedVector = null
             }
         }
         return true
@@ -185,6 +183,14 @@ class CartaView @JvmOverloads constructor(
         rumboDeg = rumbo
         distanciaMillas = distancia
         pendingVector = true
+    }
+
+    fun borrarVectorSeleccionado() {
+        selectedVector?.let {
+            vectors.remove(it)
+            selectedVector = null
+            invalidate()
+        }
     }
 
     // ---------- Lógica ----------

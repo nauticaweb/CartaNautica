@@ -15,10 +15,16 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         cartaView = findViewById(R.id.cartaView)
-        val btnAgregar = findViewById<Button>(R.id.btnAgregar) // coincide con XML
+
+        val btnAgregar = findViewById<Button>(R.id.btnAgregar)
+        val btnBorrar = findViewById<Button>(R.id.btnBorrar)
 
         btnAgregar.setOnClickListener {
             showRumboDistanciaDialog()
+        }
+
+        btnBorrar.setOnClickListener {
+            cartaView.borrarVectorSeleccionado()
         }
     }
 
@@ -35,10 +41,10 @@ class MainActivity : AppCompatActivity() {
                 val distancia = editDistancia.text.toString().toFloatOrNull()
                 if (rumbo != null && distancia != null) {
                     cartaView.prepararVector(rumbo, distancia)
-
                 }
             }
             .setNegativeButton("Cancelar", null)
             .show()
     }
 }
+

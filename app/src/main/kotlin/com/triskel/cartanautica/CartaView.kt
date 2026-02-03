@@ -21,12 +21,11 @@ class CartaView @JvmOverloads constructor(
     private var offsetX = 0f
     private var offsetY = 0f
 
-    // ---------- Control táctil ----------
+    // ---------- Touch ----------
     private var lastX = 0f
     private var lastY = 0f
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
-    // ---------- Drag preciso ----------
+    // ---------- Drag ----------
     private var dragStartCartaX = 0f
     private var dragStartCartaY = 0f
 
@@ -37,23 +36,29 @@ class CartaView @JvmOverloads constructor(
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val prev = scaleFactor
                 scaleFactor = (scaleFactor * detector.scaleFactor).coerceIn(0.5f, 5f)
-
                 val factor = scaleFactor / prev
                 offsetX = detector.focusX - factor * (detector.focusX - offsetX)
                 offsetY = detector.focusY - factor * (detector.focusY - offsetY)
-
                 invalidateMatrix()
                 return true
             }
         }
     )
 
-    // ---------- Vectores ----------
+    // ---------- Escala ----------
+    private val pixelsPerMile = 120f
+
+    // ---------- Elementos ----------
     data class VectorNautico(val start: PointF, val end: PointF)
+    data class CirculoNautico(var center: PointF, val radiusPx: Float)
 
     private val vectors = mutableListOf<VectorNautico>()
-    private var selectedVector: VectorNautico? = null
+    private val circles = mutableListOf<CirculoNautico>()
 
+    private var selectedVector: VectorNautico? = null
+    private var selectedCircle: CirculoNautico? = null
+
+    // ---------- Paint ----------
     private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         strokeWidth = 5f
@@ -64,13 +69,26 @@ class CartaView @JvmOverloads constructor(
         strokeWidth = 7f
     }
 
-    // ---------- Vector por rumbo ----------
+    private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLUE
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+    }
+
+    private val selectedCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.YELLOW
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+    }
+
+    // ---------- Estados ----------
     private var pendingVector = false
     private var rumboDeg = 0f
     private var distanciaMillas = 0f
-    private val pixelsPerMile = 120f
 
-    // ---------- Vector libre con dedo ----------
+    private var pendingCircle = false
+    private var circleDistanceMiles = 0f
+
     private var modoVectorLibre = false
     private var vectorLibreInicio: PointF? = null
     private var vectorLibrePreview: VectorNautico? = null
@@ -86,7 +104,7 @@ class CartaView @JvmOverloads constructor(
         }
     }
 
-    // ---------- Dibujo ----------
+    // ---------- Draw ----------
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
@@ -95,10 +113,15 @@ class CartaView @JvmOverloads constructor(
 
         cartaBitmap?.let { canvas.drawBitmap(it, 0f, 0f, null) }
 
-        for (v in vectors) {
-            val p = if (v == selectedVector) selectedPaint else vectorPaint
-            canvas.drawLine(v.start.x, v.start.y, v.end.x, v.end.y, p)
-            drawArrow(canvas, v.start, v.end, p)
+        circles.forEach {
+            val p = if (it == selectedCircle) selectedCirclePaint else circlePaint
+            canvas.drawCircle(it.center.x, it.center.y, it.radiusPx, p)
+        }
+
+        vectors.forEach {
+            val p = if (it == selectedVector) selectedPaint else vectorPaint
+            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, p)
+            drawArrow(canvas, it.start, it.end, p)
         }
 
         vectorLibrePreview?.let {
@@ -126,16 +149,20 @@ class CartaView @JvmOverloads constructor(
                     return true
                 }
 
-                selectedVector = findVectorAt(event.x, event.y)
-                selectedVector?.let {
-                    val pt = screenToCarta(event.x, event.y)
-                    dragStartCartaX = pt.x
-                    dragStartCartaY = pt.y
-                }
+                selectedVector = null
+                selectedCircle = null
+
+                selectedCircle = findCircleAt(event.x, event.y)
+                selectedVector = if (selectedCircle == null) findVectorAt(event.x, event.y) else null
+
+                val pt = screenToCarta(event.x, event.y)
+                dragStartCartaX = pt.x
+                dragStartCartaY = pt.y
                 invalidate()
             }
 
             MotionEvent.ACTION_MOVE -> {
+
                 if (modoVectorLibre && vectorLibreInicio != null) {
                     val end = screenToCarta(event.x, event.y)
                     vectorLibrePreview = VectorNautico(vectorLibreInicio!!, end)
@@ -143,12 +170,20 @@ class CartaView @JvmOverloads constructor(
                     return true
                 }
 
-                if (selectedVector != null) {
+                if (selectedVector != null || selectedCircle != null) {
                     val pt = screenToCarta(event.x, event.y)
                     val dx = pt.x - dragStartCartaX
                     val dy = pt.y - dragStartCartaY
-                    selectedVector!!.start.offset(dx, dy)
-                    selectedVector!!.end.offset(dx, dy)
+
+                    selectedVector?.apply {
+                        start.offset(dx, dy)
+                        end.offset(dx, dy)
+                    }
+
+                    selectedCircle?.apply {
+                        center.offset(dx, dy)
+                    }
+
                     dragStartCartaX = pt.x
                     dragStartCartaY = pt.y
                     invalidate()
@@ -162,6 +197,7 @@ class CartaView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP -> {
+
                 if (modoVectorLibre && vectorLibrePreview != null) {
                     vectors.add(vectorLibrePreview!!)
                     vectorLibrePreview = null
@@ -175,6 +211,11 @@ class CartaView @JvmOverloads constructor(
                     crearVector(event.x, event.y)
                     pendingVector = false
                 }
+
+                if (pendingCircle) {
+                    crearCirculo(event.x, event.y)
+                    pendingCircle = false
+                }
             }
         }
         return true
@@ -187,20 +228,26 @@ class CartaView @JvmOverloads constructor(
         pendingVector = true
     }
 
+    fun prepararCirculo(distancia: Float) {
+        circleDistanceMiles = distancia
+        pendingCircle = true
+    }
+
     fun activarVectorLibre() {
         modoVectorLibre = true
         vectorLibreInicio = null
         vectorLibrePreview = null
         selectedVector = null
+        selectedCircle = null
         invalidate()
     }
 
-    fun borrarVectorSeleccionado() {
-        selectedVector?.let {
-            vectors.remove(it)
-            selectedVector = null
-            invalidate()
-        }
+    fun borrarElementoSeleccionado() {
+        selectedVector?.let { vectors.remove(it) }
+        selectedCircle?.let { circles.remove(it) }
+        selectedVector = null
+        selectedCircle = null
+        invalidate()
     }
 
     // ---------- Lógica ----------
@@ -208,13 +255,18 @@ class CartaView @JvmOverloads constructor(
         val start = screenToCarta(x, y)
         val angle = Math.toRadians(rumboDeg.toDouble() - 90)
         val len = distanciaMillas * pixelsPerMile
-
         val end = PointF(
             start.x + len * cos(angle).toFloat(),
             start.y + len * sin(angle).toFloat()
         )
-
         vectors.add(VectorNautico(start, end))
+        invalidate()
+    }
+
+    private fun crearCirculo(x: Float, y: Float) {
+        val center = screenToCarta(x, y)
+        val radius = circleDistanceMiles * pixelsPerMile
+        circles.add(CirculoNautico(center, radius))
         invalidate()
     }
 
@@ -230,6 +282,13 @@ class CartaView @JvmOverloads constructor(
         val t = screenToCarta(x, y)
         return vectors.lastOrNull {
             distancePointToSegment(t.x, t.y, it.start, it.end) <= 30f
+        }
+    }
+
+    private fun findCircleAt(x: Float, y: Float): CirculoNautico? {
+        val p = screenToCarta(x, y)
+        return circles.lastOrNull {
+            abs(hypot(p.x - it.center.x, p.y - it.center.y) - it.radiusPx) <= 25f
         }
     }
 

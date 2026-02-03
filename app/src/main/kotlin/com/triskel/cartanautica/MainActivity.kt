@@ -17,19 +17,29 @@ class MainActivity : AppCompatActivity() {
         cartaView = findViewById(R.id.cartaView)
 
         val btnAgregar = findViewById<Button>(R.id.btnAgregar)
-        val btnBorrar = findViewById<Button>(R.id.btnBorrar)
         val btnVectorLibre = findViewById<Button>(R.id.btnVectorLibre)
+        val btnDistancia = findViewById<Button>(R.id.btnDistancia)
+        val btnBorrar = findViewById<Button>(R.id.btnBorrar)
+        val btnSalir = findViewById<Button>(R.id.btnSalir)
 
         btnAgregar.setOnClickListener {
             showRumboDistanciaDialog()
         }
 
-        btnBorrar.setOnClickListener {
-            cartaView.borrarVectorSeleccionado()
-        }
-
         btnVectorLibre.setOnClickListener {
             cartaView.activarVectorLibre()
+        }
+
+        btnDistancia.setOnClickListener {
+            showDistanciaDialog()
+        }
+
+        btnBorrar.setOnClickListener {
+            cartaView.borrarElementoSeleccionado()
+        }
+
+        btnSalir.setOnClickListener {
+            finishAffinity()
         }
     }
 
@@ -46,6 +56,27 @@ class MainActivity : AppCompatActivity() {
                 val distancia = editDistancia.text.toString().toFloatOrNull()
                 if (rumbo != null && distancia != null) {
                     cartaView.prepararVector(rumbo, distancia)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun showDistanciaDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_rumbo_distancia, null)
+        val editRumbo = dialogView.findViewById<EditText>(R.id.editRumbo)
+        val editDistancia = dialogView.findViewById<EditText>(R.id.editDistancia)
+
+        // Ocultamos rumbo, solo queremos distancia
+        editRumbo.visibility = EditText.GONE
+
+        AlertDialog.Builder(this)
+            .setTitle("Distancia")
+            .setView(dialogView)
+            .setPositiveButton("Aceptar") { _, _ ->
+                val distancia = editDistancia.text.toString().toFloatOrNull()
+                if (distancia != null) {
+                    cartaView.prepararCirculo(distancia)
                 }
             }
             .setNegativeButton("Cancelar", null)

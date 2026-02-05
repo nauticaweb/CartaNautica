@@ -2,6 +2,8 @@ package com.triskel.cartanautica
 
 import android.os.Bundle
 import android.widget.Button
+import android.os.Build
+import android.os.Process
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -39,7 +41,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnSalir.setOnClickListener {
-            finishAffinity()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                finishAndRemoveTask()
+            } else {
+                finish()
+                Process.killProcess(Process.myPid())
+            }
         }
     }
 

@@ -283,7 +283,7 @@ class CartaView @JvmOverloads constructor(
         val w = cartaBitmap!!.width.toDouble()
         val h = cartaBitmap!!.height.toDouble()
 
-        val lon = LON_MIN + (p.x / w) * (LON_MAX - LON_MIN)
+        val lon = LON_MAX - (p.x / w) * (LON_MAX - LON_MIN)
         val lat = LAT_MAX - (p.y / h) * (LAT_MAX - LAT_MIN)
 
         return lat to lon
@@ -296,8 +296,8 @@ class CartaView @JvmOverloads constructor(
         val h = when {
             lat && v >= 0 -> "N"
             lat -> "S"
-            !lat && v >= 0 -> "E"
-            else -> "W"
+            !lat && v >= 0 -> "W"
+            else -> "E"
         }
         return "%d° %.1f' %s".format(g, m, h)
     }

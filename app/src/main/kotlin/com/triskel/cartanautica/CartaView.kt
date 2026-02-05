@@ -1,5 +1,6 @@
 package com.triskel.cartanautica
 
+import android.app.AlertDialog
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
@@ -96,6 +97,16 @@ class CartaView @JvmOverloads constructor(
     private var vectorLibreInicio: PointF? = null
     private var vectorLibrePreview: VectorNautico? = null
 
+    // ---------- Gestos ----------
+    private val gestureDetector = GestureDetector(
+        context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                manejarPulsacionLarga(e.x, e.y)
+            }
+        }
+    )
+
     init {
         post {
             cartaBitmap = BitmapFactory.decodeResource(
@@ -138,6 +149,7 @@ class CartaView @JvmOverloads constructor(
     // ---------- Touch ----------
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
+        gestureDetector.onTouchEvent(event)
 
         when (event.actionMasked) {
 
@@ -253,6 +265,19 @@ class CartaView @JvmOverloads constructor(
         invalidate()
     }
 
+    // ---------- Pulsación larga ----------
+    private fun manejarPulsacionLarga(x: Float, y: Float) {
+        val v = findVectorAt(x, y)
+
+        if (v != null) {
+            mostrarInfoVector(v)
+        } else {
+            val p = screenToCarta(x, y)
+            val (lat, lon) = cartaToLatLon(p)
+            mostrarInfoPosicion(lat, lon)
+        }
+    }
+
     // ---------- Conversión ----------
     private fun cartaToLatLon(p: PointF): Pair<Double, Double> {
         val w = cartaBitmap!!.width.toDouble()
@@ -262,6 +287,19 @@ class CartaView @JvmOverloads constructor(
         val lat = LAT_MAX - (p.y / h) * (LAT_MAX - LAT_MIN)
 
         return lat to lon
+    }
+
+    private fun formatoGradosMinutos(v: Double, lat: Boolean): String {
+        val abs = abs(v)
+        val g = abs.toInt()
+        val m = (abs - g) * 60.0
+        val h = when {
+            lat && v >= 0 -> "N"
+            lat -> "S"
+            !lat && v >= 0 -> "E"
+            else -> "W"
+        }
+        return "%d° %.1f' %s".format(g, m, h)
     }
 
     private fun distanciaMillas(a: PointF, b: PointF): Double {
@@ -275,35 +313,69 @@ class CartaView @JvmOverloads constructor(
         return sqrt(dLat * dLat + dLon * dLon)
     }
 
-    // ---------- Lógica ----------
+    private fun rumbo(a: PointF, b: PointF): Double {
+        val (lat1, lon1) = cartaToLatLon(a)
+        val (lat2, lon2) = cartaToLatLon(b)
+
+        val φ1 = Math.toRadians(lat1)
+        val φ2 = Math.toRadians(lat2)
+        val Δλ = Math.toRadians(lon2 - lon1)
+
+        val y = sin(Δλ) * cos(φ2)
+        val x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ)
+
+        return (Math.toDegrees(atan2(y, x)) + 360) % 360
+    }
+
+    // ---------- Diálogos ----------
+    private fun mostrarInfoPosicion(lat: Double, lon: Double) {
+        AlertDialog.Builder(context)
+            .setTitle("Posición")
+            .setMessage(
+                "Latitud: ${formatoGradosMinutos(lat, true)}\n" +
+                        "Longitud: ${formatoGradosMinutos(lon, false)}"
+            )
+            .setPositiveButton("Cerrar", null)
+            .show()
+    }
+
+    private fun mostrarInfoVector(v: VectorNautico) {
+        val (lat1, lon1) = cartaToLatLon(v.start)
+        val (lat2, lon2) = cartaToLatLon(v.end)
+
+        AlertDialog.Builder(context)
+            .setTitle("Vector")
+            .setMessage(
+                "Inicio:\n${formatoGradosMinutos(lat1, true)}\n${formatoGradosMinutos(lon1, false)}\n\n" +
+                        "Final:\n${formatoGradosMinutos(lat2, true)}\n${formatoGradosMinutos(lon2, false)}\n\n" +
+                        "Rumbo: %.1f°\nDistancia: %.2f millas".format(
+                            rumbo(v.start, v.end),
+                            distanciaMillas(v.start, v.end)
+                        )
+            )
+            .setPositiveButton("Cerrar", null)
+            .show()
+    }
+
+    // ---------- Utilidades ----------
     private fun crearVector(x: Float, y: Float) {
         val start = screenToCarta(x, y)
-
         val ang = Math.toRadians(rumboDeg.toDouble() - 90)
-        val dir = PointF(
-            start.x + cos(ang).toFloat(),
-            start.y + sin(ang).toFloat()
-        )
-
+        val dir = PointF(start.x + cos(ang).toFloat(), start.y + sin(ang).toFloat())
         val factor = distanciaMillas / distanciaMillas(start, dir)
-
         val end = PointF(
             start.x + (dir.x - start.x) * factor.toFloat(),
             start.y + (dir.y - start.y) * factor.toFloat()
         )
-
         vectors.add(VectorNautico(start, end))
         invalidate()
     }
 
     private fun crearCirculo(x: Float, y: Float) {
         val center = screenToCarta(x, y)
-
         val ref = PointF(center.x + 100f, center.y)
         val millas100px = distanciaMillas(center, ref)
-
         val radiusPx = (circleDistanceMiles / millas100px * 100).toFloat()
-
         circles.add(CirculoNautico(center, radiusPx))
         invalidate()
     }

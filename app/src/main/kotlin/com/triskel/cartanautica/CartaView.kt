@@ -14,6 +14,12 @@ class CartaView @JvmOverloads constructor(
     // ---------- Carta ----------
     private var cartaBitmap: Bitmap? = null
 
+    // ---------- Coordenadas reales ----------
+    private val LAT_MAX = 36.3333
+    private val LAT_MIN = 35.6667
+    private val LON_MIN = 5.1667
+    private val LON_MAX = 6.3333
+
     // ---------- Transformación ----------
     private val matrix = Matrix()
     private val inverseMatrix = Matrix()
@@ -44,9 +50,6 @@ class CartaView @JvmOverloads constructor(
             }
         }
     )
-
-    // ---------- Escala ----------
-    private val pixelsPerMile = 120f
 
     // ---------- Elementos ----------
     data class VectorNautico(val start: PointF, val end: PointF)
@@ -250,23 +253,58 @@ class CartaView @JvmOverloads constructor(
         invalidate()
     }
 
+    // ---------- Conversión ----------
+    private fun cartaToLatLon(p: PointF): Pair<Double, Double> {
+        val w = cartaBitmap!!.width.toDouble()
+        val h = cartaBitmap!!.height.toDouble()
+
+        val lon = LON_MIN + (p.x / w) * (LON_MAX - LON_MIN)
+        val lat = LAT_MAX - (p.y / h) * (LAT_MAX - LAT_MIN)
+
+        return lat to lon
+    }
+
+    private fun distanciaMillas(a: PointF, b: PointF): Double {
+        val (lat1, lon1) = cartaToLatLon(a)
+        val (lat2, lon2) = cartaToLatLon(b)
+
+        val dLat = (lat2 - lat1) * 60.0
+        val latMedia = Math.toRadians((lat1 + lat2) / 2.0)
+        val dLon = (lon2 - lon1) * 60.0 * cos(latMedia)
+
+        return sqrt(dLat * dLat + dLon * dLon)
+    }
+
     // ---------- Lógica ----------
     private fun crearVector(x: Float, y: Float) {
         val start = screenToCarta(x, y)
-        val angle = Math.toRadians(rumboDeg.toDouble() - 90)
-        val len = distanciaMillas * pixelsPerMile
-        val end = PointF(
-            start.x + len * cos(angle).toFloat(),
-            start.y + len * sin(angle).toFloat()
+
+        val ang = Math.toRadians(rumboDeg.toDouble() - 90)
+        val dir = PointF(
+            start.x + cos(ang).toFloat(),
+            start.y + sin(ang).toFloat()
         )
+
+        val factor = distanciaMillas / distanciaMillas(start, dir)
+
+        val end = PointF(
+            start.x + (dir.x - start.x) * factor.toFloat(),
+            start.y + (dir.y - start.y) * factor.toFloat()
+        )
+
         vectors.add(VectorNautico(start, end))
         invalidate()
     }
 
     private fun crearCirculo(x: Float, y: Float) {
         val center = screenToCarta(x, y)
-        val radius = circleDistanceMiles * pixelsPerMile
-        circles.add(CirculoNautico(center, radius))
+
+        val ref = PointF(center.x + 100f, center.y)
+        val millas100px = distanciaMillas(center, ref)
+
+        val radiusPx = (circleDistanceMiles / millas100px * 100).toFloat()
+
+        circles.add(CirculoNautico(center, radiusPx))
         invalidate()
     }
 

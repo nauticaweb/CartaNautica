@@ -319,7 +319,7 @@ class CartaView @JvmOverloads constructor(
 
         val φ1 = Math.toRadians(lat1)
         val φ2 = Math.toRadians(lat2)
-        val Δλ = Math.toRadians(lon2 - lon1)
+        val Δλ = Math.toRadians(lon1 - lon2)
 
         val y = sin(Δλ) * cos(φ2)
         val x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ)

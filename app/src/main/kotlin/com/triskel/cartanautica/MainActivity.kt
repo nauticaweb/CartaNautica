@@ -18,11 +18,16 @@ class MainActivity : AppCompatActivity() {
 
         cartaView = findViewById(R.id.cartaView)
 
+        // Botones existentes
         val btnAgregar = findViewById<Button>(R.id.btnAgregar)
         val btnVectorLibre = findViewById<Button>(R.id.btnVectorLibre)
         val btnDistancia = findViewById<Button>(R.id.btnDistancia)
         val btnBorrar = findViewById<Button>(R.id.btnBorrar)
         val btnSalir = findViewById<Button>(R.id.btnSalir)
+
+        // Botones nuevos (Paso B)
+        val btnCrearPunto = findViewById<Button>(R.id.btnCrearPunto)
+        val btnImprimir = findViewById<Button>(R.id.btnImprimir)
 
         btnAgregar.setOnClickListener {
             showRumboDistanciaDialog()
@@ -38,6 +43,16 @@ class MainActivity : AppCompatActivity() {
 
         btnBorrar.setOnClickListener {
             cartaView.borrarElementoSeleccionado()
+        }
+
+        // NUEVO: Crear Punto (Paso D)
+        btnCrearPunto.setOnClickListener {
+            showLatLonDialog()
+        }
+
+        // NUEVO: Imprimir (sin implementar aún)
+        btnImprimir.setOnClickListener {
+            // Pendiente de implementar
         }
 
         btnSalir.setOnClickListener {
@@ -84,6 +99,36 @@ class MainActivity : AppCompatActivity() {
                 val distancia = editDistancia.text.toString().toFloatOrNull()
                 if (distancia != null) {
                     cartaView.prepararCirculo(distancia)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    // NUEVO: Función para mostrar diálogo de latitud/longitud
+    private fun showLatLonDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_lat_lon, null)
+        val editLatGrados = dialogView.findViewById<EditText>(R.id.editLatGrados)
+        val editLatMinutos = dialogView.findViewById<EditText>(R.id.editLatMinutos)
+        val editLonGrados = dialogView.findViewById<EditText>(R.id.editLonGrados)
+        val editLonMinutos = dialogView.findViewById<EditText>(R.id.editLonMinutos)
+
+        AlertDialog.Builder(this)
+            .setTitle("Crear Punto")
+            .setView(dialogView)
+            .setPositiveButton("Aceptar") { _, _ ->
+                val latG = editLatGrados.text.toString().toFloatOrNull()
+                val latM = editLatMinutos.text.toString().toFloatOrNull()
+                val lonG = editLonGrados.text.toString().toFloatOrNull()
+                val lonM = editLonMinutos.text.toString().toFloatOrNull()
+
+                if (latG != null && latM != null && lonG != null && lonM != null) {
+                    // Convertir a decimal y a Double
+                    val latDecimal = latG.toDouble() + (latM.toDouble() / 60.0)
+                    val lonDecimal = lonG.toDouble() + (lonM.toDouble() / 60.0)
+
+                    // Llamada a CartaView (Paso E)
+                    cartaView.crearPunto(latDecimal, lonDecimal)
                 }
             }
             .setNegativeButton("Cancelar", null)

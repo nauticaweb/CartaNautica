@@ -42,12 +42,9 @@ class CartaView @JvmOverloads constructor(
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val prevScale = scaleFactor
-
-                // Zoom más suave: aplicamos un suavizado al factor de escala
                 val scaleChange = 1f + 0.3f * (detector.scaleFactor - 1f)
                 scaleFactor *= scaleChange
 
-                // Zoom mínimo dinámico: que quepa completa la carta en la pantalla
                 cartaBitmap?.let {
                     val minScaleX = width.toFloat() / it.width
                     val minScaleY = height.toFloat() / it.height
@@ -55,7 +52,6 @@ class CartaView @JvmOverloads constructor(
                     scaleFactor = scaleFactor.coerceIn(minScale, 5f)
                 }
 
-                // Ajustar offsets para mantener el foco del zoom
                 val factor = scaleFactor / prevScale
                 offsetX = detector.focusX - factor * (detector.focusX - offsetX)
                 offsetY = detector.focusY - factor * (detector.focusY - offsetY)
@@ -69,12 +65,15 @@ class CartaView @JvmOverloads constructor(
     // ---------- Elementos ----------
     data class VectorNautico(val start: PointF, val end: PointF)
     data class CirculoNautico(var center: PointF, val radiusPx: Float)
+    data class Punto(var position: PointF)
 
     private val vectors = mutableListOf<VectorNautico>()
     private val circles = mutableListOf<CirculoNautico>()
+    private val puntos = mutableListOf<Punto>()
 
     private var selectedVector: VectorNautico? = null
     private var selectedCircle: CirculoNautico? = null
+    private var selectedPunto: Punto? = null
 
     // ---------- Paint ----------
     private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -97,6 +96,16 @@ class CartaView @JvmOverloads constructor(
         color = Color.YELLOW
         style = Paint.Style.STROKE
         strokeWidth = 6f
+    }
+
+    private val puntoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.RED
+        style = Paint.Style.FILL
+    }
+
+    private val selectedPuntoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.YELLOW
+        style = Paint.Style.FILL
     }
 
     // ---------- Estados ----------
@@ -157,6 +166,11 @@ class CartaView @JvmOverloads constructor(
             drawArrow(canvas, it.start, it.end, vectorPaint)
         }
 
+        puntos.forEach { p ->
+            val paint = if (p == selectedPunto) selectedPuntoPaint else puntoPaint
+            canvas.drawCircle(p.position.x, p.position.y, 10f, paint)
+        }
+
         canvas.restore()
     }
 
@@ -180,9 +194,16 @@ class CartaView @JvmOverloads constructor(
 
                 selectedVector = null
                 selectedCircle = null
+                selectedPunto = null
 
                 selectedCircle = findCircleAt(event.x, event.y)
                 selectedVector = if (selectedCircle == null) findVectorAt(event.x, event.y) else null
+                if (selectedVector == null && selectedCircle == null) {
+                    selectedPunto = puntos.lastOrNull {
+                        val t = screenToCarta(event.x, event.y)
+                        hypot(t.x - it.position.x, t.y - it.position.y) <= 30f
+                    }
+                }
 
                 val pt = screenToCarta(event.x, event.y)
                 dragStartCartaX = pt.x
@@ -199,7 +220,7 @@ class CartaView @JvmOverloads constructor(
                     return true
                 }
 
-                if (selectedVector != null || selectedCircle != null) {
+                if (selectedVector != null || selectedCircle != null || selectedPunto != null) {
                     val pt = screenToCarta(event.x, event.y)
                     val dx = pt.x - dragStartCartaX
                     val dy = pt.y - dragStartCartaY
@@ -211,6 +232,10 @@ class CartaView @JvmOverloads constructor(
 
                     selectedCircle?.apply {
                         center.offset(dx, dy)
+                    }
+
+                    selectedPunto?.apply {
+                        position.offset(dx, dy)
                     }
 
                     dragStartCartaX = pt.x
@@ -268,15 +293,27 @@ class CartaView @JvmOverloads constructor(
         vectorLibrePreview = null
         selectedVector = null
         selectedCircle = null
+        selectedPunto = null
         invalidate()
     }
 
     fun borrarElementoSeleccionado() {
+        selectedPunto?.let { puntos.remove(it) }
         selectedVector?.let { vectors.remove(it) }
         selectedCircle?.let { circles.remove(it) }
+        selectedPunto = null
         selectedVector = null
         selectedCircle = null
         invalidate()
+    }
+
+    fun crearPunto(lat: Double, lon: Double) {
+        cartaBitmap?.let {
+            val x = ((LON_MAX - lon) / (LON_MAX - LON_MIN) * it.width).toFloat()
+            val y = ((LAT_MAX - lat) / (LAT_MAX - LAT_MIN) * it.height).toFloat()
+            puntos.add(Punto(PointF(x, y)))
+            invalidate()
+        }
     }
 
     // ---------- Pulsación larga ----------
@@ -296,10 +333,8 @@ class CartaView @JvmOverloads constructor(
     private fun cartaToLatLon(p: PointF): Pair<Double, Double> {
         val w = cartaBitmap!!.width.toDouble()
         val h = cartaBitmap!!.height.toDouble()
-
         val lon = LON_MAX - (p.x / w) * (LON_MAX - LON_MIN)
         val lat = LAT_MAX - (p.y / h) * (LAT_MAX - LAT_MIN)
-
         return lat to lon
     }
 
@@ -319,25 +354,20 @@ class CartaView @JvmOverloads constructor(
     private fun distanciaMillas(a: PointF, b: PointF): Double {
         val (lat1, lon1) = cartaToLatLon(a)
         val (lat2, lon2) = cartaToLatLon(b)
-
         val dLat = (lat2 - lat1) * 60.0
         val latMedia = Math.toRadians((lat1 + lat2) / 2.0)
         val dLon = (lon2 - lon1) * 60.0 * cos(latMedia)
-
         return sqrt(dLat * dLat + dLon * dLon)
     }
 
     private fun rumbo(a: PointF, b: PointF): Double {
         val (lat1, lon1) = cartaToLatLon(a)
         val (lat2, lon2) = cartaToLatLon(b)
-
         val φ1 = Math.toRadians(lat1)
         val φ2 = Math.toRadians(lat2)
         val Δλ = Math.toRadians(lon1 - lon2)
-
         val y = sin(Δλ) * cos(φ2)
         val x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ)
-
         return (Math.toDegrees(atan2(y, x)) + 360) % 360
     }
 
@@ -356,7 +386,6 @@ class CartaView @JvmOverloads constructor(
     private fun mostrarInfoVector(v: VectorNautico) {
         val (lat1, lon1) = cartaToLatLon(v.start)
         val (lat2, lon2) = cartaToLatLon(v.end)
-
         AlertDialog.Builder(context)
             .setTitle("Vector")
             .setMessage(

@@ -7,48 +7,68 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
-    <!-- Contenedor de botones alineado a la derecha -->
-    <LinearLayout
-        android:orientation="vertical"
+    <!-- Contenedor de botones desplazable -->
+    <ScrollView
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_gravity="end|top"
-        android:padding="16dp"
-        android:gravity="end">
+        android:padding="16dp">
 
-        <Button
-            android:id="@+id/btnAgregar"
-            android:layout_width="150dp"
-            android:layout_height="50dp"
-            android:text="Agregar Rumbo"
-            android:layout_marginBottom="16dp"/>
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="end">
 
-        <Button
-            android:id="@+id/btnVectorLibre"
-            android:layout_width="150dp"
-            android:layout_height="50dp"
-            android:text="Vector libre"
-            android:layout_marginBottom="16dp"/>
+            <Button
+                android:id="@+id/btnCrearPunto"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Crear Punto"
+                android:layout_marginBottom="16dp"/>
 
-        <Button
-            android:id="@+id/btnDistancia"
-            android:layout_width="150dp"
-            android:layout_height="50dp"
-            android:text="Agregar Distancia"
-            android:layout_marginBottom="16dp"/>
+            <Button
+                android:id="@+id/btnAgregar"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Agregar Rumbo"
+                android:layout_marginBottom="16dp"/>
 
-        <Button
-            android:id="@+id/btnBorrar"
-            android:layout_width="150dp"
-            android:layout_height="50dp"
-            android:text="Borrar"
-            android:layout_marginBottom="16dp"/>
+            <Button
+                android:id="@+id/btnVectorLibre"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Vector libre"
+                android:layout_marginBottom="16dp"/>
 
-        <Button
-            android:id="@+id/btnSalir"
-            android:layout_width="150dp"
-            android:layout_height="50dp"
-            android:text="Salir"/>
-    </LinearLayout>
+            <Button
+                android:id="@+id/btnDistancia"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Agregar Distancia"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
+                android:id="@+id/btnBorrar"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Borrar"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
+                android:id="@+id/btnImprimir"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Imprimir"
+                android:layout_marginBottom="16dp"/>
+
+            <Button
+                android:id="@+id/btnSalir"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Salir"/>
+
+        </LinearLayout>
+    </ScrollView>
 
 </FrameLayout>

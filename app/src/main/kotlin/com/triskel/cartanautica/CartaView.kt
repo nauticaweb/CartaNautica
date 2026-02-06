@@ -41,11 +41,25 @@ class CartaView @JvmOverloads constructor(
         context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val prev = scaleFactor
-                scaleFactor = (scaleFactor * detector.scaleFactor).coerceIn(0.5f, 5f)
-                val factor = scaleFactor / prev
+                val prevScale = scaleFactor
+
+                // Zoom más suave: aplicamos un suavizado al factor de escala
+                val scaleChange = 1f + 0.3f * (detector.scaleFactor - 1f)
+                scaleFactor *= scaleChange
+
+                // Zoom mínimo dinámico: que quepa completa la carta en la pantalla
+                cartaBitmap?.let {
+                    val minScaleX = width.toFloat() / it.width
+                    val minScaleY = height.toFloat() / it.height
+                    val minScale = min(minScaleX, minScaleY)
+                    scaleFactor = scaleFactor.coerceIn(minScale, 5f)
+                }
+
+                // Ajustar offsets para mantener el foco del zoom
+                val factor = scaleFactor / prevScale
                 offsetX = detector.focusX - factor * (detector.focusX - offsetX)
                 offsetY = detector.focusY - factor * (detector.focusY - offsetY)
+
                 invalidateMatrix()
                 return true
             }

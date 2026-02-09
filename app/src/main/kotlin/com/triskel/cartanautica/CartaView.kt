@@ -334,21 +334,28 @@ class CartaView @JvmOverloads constructor(
     private fun cartaToLatLon(p: PointF): Pair<Double, Double> {
         val w = cartaBitmap!!.width.toDouble()
         val h = cartaBitmap!!.height.toDouble()
-        val lon = LON_MAX - (p.x / w) * (LON_MAX - LON_MIN)
         val lat = LAT_MAX - (p.y / h) * (LAT_MAX - LAT_MIN)
+        val lon = LON_MAX - (p.x / w) * (LON_MAX - LON_MIN) // lineal
         return lat to lon
     }
 
     private fun formatoGradosMinutos(v: Double, lat: Boolean): String {
-        val abs = abs(v)
-        val g = abs.toInt()
-        val m = (abs - g) * 60.0
-        val h = when {
-            lat && v >= 0 -> "N"
-            lat -> "S"
-            !lat && v >= 0 -> "W"
-            else -> "E"
+        var absV = abs(v)
+        var g = absV.toInt()
+        var m = (absV - g) * 60.0
+
+        // Normalizar minutos: si llega a 60, pasamos al siguiente grado
+        if (m >= 60.0) {
+            g += 1
+            m -= 60.0
         }
+
+        val h = if (lat) {
+            if (v >= 0) "N" else "S"
+        } else {
+            if (v >= 0) "O" else "E" // tu convención: Oeste positivo
+        }
+
         return "%d° %.1f' %s".format(g, m, h)
     }
 
@@ -356,8 +363,7 @@ class CartaView @JvmOverloads constructor(
         val (lat1, lon1) = cartaToLatLon(a)
         val (lat2, lon2) = cartaToLatLon(b)
         val dLat = (lat2 - lat1) * 60.0
-        val latMedia = Math.toRadians((lat1 + lat2) / 2.0)
-        val dLon = (lon2 - lon1) * 60.0 * cos(latMedia)
+        val dLon = (lon2 - lon1) * 60.0 * cos(Math.toRadians((lat1 + lat2) / 2.0))
         return sqrt(dLat * dLat + dLon * dLon)
     }
 
@@ -421,8 +427,7 @@ class CartaView @JvmOverloads constructor(
         val center = screenToCarta(x, y)
         val ref = PointF(center.x + 100f, center.y)
         val millas100px = distanciaMillas(center, ref)
-        val radiusPx =
-            (circleDistanceMiles / millas100px * 100).toFloat()
+        val radiusPx = (circleDistanceMiles / millas100px * 100).toFloat()
         circles.add(CirculoNautico(center, radiusPx))
         invalidate()
     }

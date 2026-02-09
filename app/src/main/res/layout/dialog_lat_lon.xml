@@ -22,7 +22,9 @@
             android:layout_weight="1"
             android:hint="Grados"
             android:inputType="numberDecimal"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:imeOptions="actionNext"
+            android:nextFocusDown="@id/editLatMinutos"/>
 
         <EditText
             android:id="@+id/editLatMinutos"
@@ -31,7 +33,9 @@
             android:hint="Minutos"
             android:inputType="numberDecimal"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"/>
+            android:layout_marginStart="8dp"
+            android:imeOptions="actionNext"
+            android:nextFocusDown="@id/editLonGrados"/>
     </LinearLayout>
 
     <!-- LONGITUD -->
@@ -52,7 +56,9 @@
             android:layout_weight="1"
             android:hint="Grados"
             android:inputType="numberDecimal"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content"
+            android:imeOptions="actionNext"
+            android:nextFocusDown="@id/editLonMinutos"/>
 
         <EditText
             android:id="@+id/editLonMinutos"
@@ -61,7 +67,8 @@
             android:hint="Minutos"
             android:inputType="numberDecimal"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"/>
+            android:layout_marginStart="8dp"
+            android:imeOptions="actionDone"/>
     </LinearLayout>
 
 </LinearLayout>

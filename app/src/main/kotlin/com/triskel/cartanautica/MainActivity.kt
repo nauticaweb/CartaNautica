@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
         val btnBorrar = findViewById<Button>(R.id.btnBorrar)
         val btnSalir = findViewById<Button>(R.id.btnSalir)
 
-        // Botones nuevos (Paso B)
+        // Botones nuevos
         val btnCrearPunto = findViewById<Button>(R.id.btnCrearPunto)
         val btnImprimir = findViewById<Button>(R.id.btnImprimir)
 
@@ -45,14 +45,12 @@ class MainActivity : AppCompatActivity() {
             cartaView.borrarElementoSeleccionado()
         }
 
-        // NUEVO: Crear Punto (Paso D)
         btnCrearPunto.setOnClickListener {
             showLatLonDialog()
         }
 
-        // NUEVO: Imprimir (sin implementar aún)
         btnImprimir.setOnClickListener {
-            // Pendiente de implementar
+            // Pendiente
         }
 
         btnSalir.setOnClickListener {
@@ -89,7 +87,6 @@ class MainActivity : AppCompatActivity() {
         val editRumbo = dialogView.findViewById<EditText>(R.id.editRumbo)
         val editDistancia = dialogView.findViewById<EditText>(R.id.editDistancia)
 
-        // Ocultamos rumbo, solo queremos distancia
         editRumbo.visibility = EditText.GONE
 
         AlertDialog.Builder(this)
@@ -105,9 +102,10 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // NUEVO: Función para mostrar diálogo de latitud/longitud
+    // CORREGIDO: diálogo Latitud / Longitud con orden lógico y minutos opcionales
     private fun showLatLonDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_lat_lon, null)
+
         val editLatGrados = dialogView.findViewById<EditText>(R.id.editLatGrados)
         val editLatMinutos = dialogView.findViewById<EditText>(R.id.editLatMinutos)
         val editLonGrados = dialogView.findViewById<EditText>(R.id.editLonGrados)
@@ -117,17 +115,20 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Crear Punto")
             .setView(dialogView)
             .setPositiveButton("Aceptar") { _, _ ->
-                val latG = editLatGrados.text.toString().toFloatOrNull()
-                val latM = editLatMinutos.text.toString().toFloatOrNull()
-                val lonG = editLonGrados.text.toString().toFloatOrNull()
-                val lonM = editLonMinutos.text.toString().toFloatOrNull()
 
-                if (latG != null && latM != null && lonG != null && lonM != null) {
-                    // Convertir a decimal y a Double
-                    val latDecimal = latG.toDouble() + (latM.toDouble() / 60.0)
-                    val lonDecimal = lonG.toDouble() + (lonM.toDouble() / 60.0)
+                // Latitud
+                val latGrados = editLatGrados.text.toString().toDoubleOrNull()
+                val latMinutos = editLatMinutos.text.toString().toDoubleOrNull() ?: 0.0
 
-                    // Llamada a CartaView (Paso E)
+                // Longitud
+                val lonGrados = editLonGrados.text.toString().toDoubleOrNull()
+                val lonMinutos = editLonMinutos.text.toString().toDoubleOrNull() ?: 0.0
+
+                if (latGrados != null && lonGrados != null) {
+
+                    val latDecimal = latGrados + (latMinutos / 60.0)
+                    val lonDecimal = lonGrados + (lonMinutos / 60.0)
+
                     cartaView.crearPunto(latDecimal, lonDecimal)
                 }
             }

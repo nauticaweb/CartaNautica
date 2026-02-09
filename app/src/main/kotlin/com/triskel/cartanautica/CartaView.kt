@@ -42,8 +42,7 @@ class CartaView @JvmOverloads constructor(
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val prevScale = scaleFactor
-                val scaleChange = 1f + 0.3f * (detector.scaleFactor - 1f)
-                scaleFactor *= scaleChange
+                scaleFactor *= detector.scaleFactor
 
                 cartaBitmap?.let {
                     val minScaleX = width.toFloat() / it.width
@@ -52,9 +51,10 @@ class CartaView @JvmOverloads constructor(
                     scaleFactor = scaleFactor.coerceIn(minScale, 5f)
                 }
 
-                val factor = scaleFactor / prevScale
-                offsetX = detector.focusX - factor * (detector.focusX - offsetX)
-                offsetY = detector.focusY - factor * (detector.focusY - offsetY)
+                offsetX =
+                    (offsetX - detector.focusX) * (scaleFactor / prevScale) + detector.focusX
+                offsetY =
+                    (offsetY - detector.focusY) * (scaleFactor / prevScale) + detector.focusY
 
                 invalidateMatrix()
                 return true
@@ -197,7 +197,8 @@ class CartaView @JvmOverloads constructor(
                 selectedPunto = null
 
                 selectedCircle = findCircleAt(event.x, event.y)
-                selectedVector = if (selectedCircle == null) findVectorAt(event.x, event.y) else null
+                selectedVector =
+                    if (selectedCircle == null) findVectorAt(event.x, event.y) else null
                 if (selectedVector == null && selectedCircle == null) {
                     selectedPunto = puntos.lastOrNull {
                         val t = screenToCarta(event.x, event.y)
@@ -367,7 +368,8 @@ class CartaView @JvmOverloads constructor(
         val φ2 = Math.toRadians(lat2)
         val Δλ = Math.toRadians(lon1 - lon2)
         val y = sin(Δλ) * cos(φ2)
-        val x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ)
+        val x =
+            cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ)
         return (Math.toDegrees(atan2(y, x)) + 360) % 360
     }
 
@@ -404,7 +406,8 @@ class CartaView @JvmOverloads constructor(
     private fun crearVector(x: Float, y: Float) {
         val start = screenToCarta(x, y)
         val ang = Math.toRadians(rumboDeg.toDouble() - 90)
-        val dir = PointF(start.x + cos(ang).toFloat(), start.y + sin(ang).toFloat())
+        val dir =
+            PointF(start.x + cos(ang).toFloat(), start.y + sin(ang).toFloat())
         val factor = distanciaMillas / distanciaMillas(start, dir)
         val end = PointF(
             start.x + (dir.x - start.x) * factor.toFloat(),
@@ -418,7 +421,8 @@ class CartaView @JvmOverloads constructor(
         val center = screenToCarta(x, y)
         val ref = PointF(center.x + 100f, center.y)
         val millas100px = distanciaMillas(center, ref)
-        val radiusPx = (circleDistanceMiles / millas100px * 100).toFloat()
+        val radiusPx =
+            (circleDistanceMiles / millas100px * 100).toFloat()
         circles.add(CirculoNautico(center, radiusPx))
         invalidate()
     }
@@ -434,7 +438,12 @@ class CartaView @JvmOverloads constructor(
     private fun findVectorAt(x: Float, y: Float): VectorNautico? {
         val t = screenToCarta(x, y)
         return vectors.lastOrNull {
-            distancePointToSegment(t.x, t.y, it.start, it.end) <= 30f
+            distancePointToSegment(
+                t.x,
+                t.y,
+                it.start,
+                it.end
+            ) <= 30f
         }
     }
 
@@ -445,7 +454,12 @@ class CartaView @JvmOverloads constructor(
         }
     }
 
-    private fun distancePointToSegment(px: Float, py: Float, a: PointF, b: PointF): Float {
+    private fun distancePointToSegment(
+        px: Float,
+        py: Float,
+        a: PointF,
+        b: PointF
+    ): Float {
         val dx = b.x - a.x
         val dy = b.y - a.y
         val len2 = dx * dx + dy * dy
@@ -461,8 +475,20 @@ class CartaView @JvmOverloads constructor(
         val ang = atan2(e.y - s.y, e.x - s.x)
         val l = 25f
         val a = Math.toRadians(25.0)
-        c.drawLine(e.x, e.y, e.x - l * cos(ang - a).toFloat(), e.y - l * sin(ang - a).toFloat(), p)
-        c.drawLine(e.x, e.y, e.x - l * cos(ang + a).toFloat(), e.y - l * sin(ang + a).toFloat(), p)
+        c.drawLine(
+            e.x,
+            e.y,
+            e.x - l * cos(ang - a).toFloat(),
+            e.y - l * sin(ang - a).toFloat(),
+            p
+        )
+        c.drawLine(
+            e.x,
+            e.y,
+            e.x - l * cos(ang + a).toFloat(),
+            e.y - l * sin(ang + a).toFloat(),
+            p
+        )
     }
 
     private fun invalidateMatrix() {
@@ -474,7 +500,8 @@ class CartaView @JvmOverloads constructor(
 
     private fun centerCarta() {
         cartaBitmap?.let {
-            scaleFactor = min(width / it.width.toFloat(), height / it.height.toFloat())
+            scaleFactor =
+                min(width / it.width.toFloat(), height / it.height.toFloat())
             offsetX = (width - it.width * scaleFactor) / 2
             offsetY = (height - it.height * scaleFactor) / 2
             invalidateMatrix()

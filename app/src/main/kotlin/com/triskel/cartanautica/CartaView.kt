@@ -21,6 +21,10 @@ class CartaView @JvmOverloads constructor(
     private val LON_MIN = 5.1667
     private val LON_MAX = 6.3333
 
+    // Latitud de referencia para corrección de longitud
+    private val LAT_REF = (LAT_MAX + LAT_MIN) / 2.0
+    private val COS_LAT_REF = cos(Math.toRadians(LAT_REF))
+
     // ---------- Transformación ----------
     private val matrix = Matrix()
     private val inverseMatrix = Matrix()
@@ -309,9 +313,16 @@ class CartaView @JvmOverloads constructor(
     }
 
     fun crearPunto(lat: Double, lon: Double) {
-        cartaBitmap?.let {
-            val x = ((LON_MAX - lon) / (LON_MAX - LON_MIN) * it.width).toFloat()
-            val y = ((LAT_MAX - lat) / (LAT_MAX - LAT_MIN) * it.height).toFloat()
+        cartaBitmap?.let { bmp ->
+            val latMinTotal = (LAT_MAX - LAT_MIN) * 60.0
+            val lonMinTotal = (LON_MAX - LON_MIN) * 60.0 * COS_LAT_REF
+
+            val yMillas = (LAT_MAX - lat) * 60.0
+            val xMillas = (LON_MAX - lon) * 60.0 * COS_LAT_REF
+
+            val x = (xMillas / lonMinTotal * bmp.width).toFloat()
+            val y = (yMillas / latMinTotal * bmp.height).toFloat()
+
             puntos.add(Punto(PointF(x, y)))
             invalidate()
         }
@@ -332,10 +343,17 @@ class CartaView @JvmOverloads constructor(
 
     // ---------- Conversión ----------
     private fun cartaToLatLon(p: PointF): Pair<Double, Double> {
-        val w = cartaBitmap!!.width.toDouble()
-        val h = cartaBitmap!!.height.toDouble()
-        val lat = LAT_MAX - (p.y / h) * (LAT_MAX - LAT_MIN)
-        val lon = LON_MAX - (p.x / w) * (LON_MAX - LON_MIN) // lineal
+        val bmp = cartaBitmap!!
+
+        val latMinTotal = (LAT_MAX - LAT_MIN) * 60.0
+        val lonMinTotal = (LON_MAX - LON_MIN) * 60.0 * COS_LAT_REF
+
+        val yMillas = p.y / bmp.height * latMinTotal
+        val xMillas = p.x / bmp.width * lonMinTotal
+
+        val lat = LAT_MAX - yMillas / 60.0
+        val lon = LON_MAX - (xMillas / COS_LAT_REF) / 60.0
+
         return lat to lon
     }
 
@@ -344,7 +362,6 @@ class CartaView @JvmOverloads constructor(
         var g = absV.toInt()
         var m = (absV - g) * 60.0
 
-        // Normalizar minutos: si llega a 60, pasamos al siguiente grado
         if (m >= 60.0) {
             g += 1
             m -= 60.0
@@ -353,7 +370,7 @@ class CartaView @JvmOverloads constructor(
         val h = if (lat) {
             if (v >= 0) "N" else "S"
         } else {
-            if (v >= 0) "O" else "E" // tu convención: Oeste positivo
+            if (v >= 0) "O" else "E"
         }
 
         return "%d° %.1f' %s".format(g, m, h)

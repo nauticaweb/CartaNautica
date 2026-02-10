@@ -16,10 +16,10 @@ class CartaView @JvmOverloads constructor(
     private var cartaBitmap: Bitmap? = null
 
     // ---------- Coordenadas reales ----------
-    private val LAT_MAX = 36.3333
-    private val LAT_MIN = 35.6667
-    private val LON_MIN = 5.1667
-    private val LON_MAX = 6.3333
+    private val LAT_MAX = 36.33663333333333
+    private val LAT_MIN = 35.66336666666667
+    private val LON_MAX = 6.336633333333333
+    private val LON_MIN = 5.163366666666667
 
     // Latitud de referencia para corrección de longitud
     private val LAT_REF = (LAT_MAX + LAT_MIN) / 2.0
@@ -362,9 +362,9 @@ class CartaView @JvmOverloads constructor(
         var g = absV.toInt()
         var m = (absV - g) * 60.0
 
-        if (m >= 60.0) {
+        if (m >= 59.9999995) {   // margen contra errores de coma flotante
+            m = 0.0
             g += 1
-            m -= 60.0
         }
 
         val h = if (lat) {

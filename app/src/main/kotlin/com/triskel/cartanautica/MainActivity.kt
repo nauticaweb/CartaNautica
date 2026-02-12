@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnImprimir.setOnClickListener {
-            // Pendiente
+            cartaView.imprimirCartaPdf("CartaNautica.pdf")
         }
 
         btnSalir.setOnClickListener {

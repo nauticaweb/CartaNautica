@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.graphics.pdf.PdfDocument
 import android.view.*
 import kotlin.math.*
 
@@ -543,6 +544,64 @@ class CartaView @JvmOverloads constructor(
             offsetX = (width - it.width * scaleFactor) / 2
             offsetY = (height - it.height * scaleFactor) / 2
             invalidateMatrix()
+        }
+    }
+
+    fun imprimirCartaPdf(nombreArchivo: String = "CartaNautica.pdf") {
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+
+        // --- Tamaño A3 ---
+        val pageWidth = 842  // puntos
+        val pageHeight = 1191
+
+        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
+        val page = pdfDocument.startPage(pageInfo)
+        val canvas = page.canvas
+
+        cartaBitmap?.let { bmp ->
+            val scale = min(pageWidth.toFloat() / bmp.width, pageHeight.toFloat() / bmp.height)
+            val offsetX = (pageWidth - bmp.width * scale) / 2
+            val offsetY = (pageHeight - bmp.height * scale) / 2
+
+            canvas.save()
+            canvas.translate(offsetX, offsetY)
+            canvas.scale(scale, scale)
+
+            circles.forEach {
+                val p = if (it == selectedCircle) selectedCirclePaint else circlePaint
+                canvas.drawCircle(it.center.x, it.center.y, it.radiusPx, p)
+            }
+
+            vectors.forEach {
+                val paint = if (it == selectedVector) selectedPaint else when(it.tipo) {
+                    TipoVector.RUMBO -> rumboPaint
+                    TipoVector.DEMORA -> demoraPaint
+                    TipoVector.LIBRE -> librePaint
+                }
+                canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
+                drawArrow(canvas, it.start, it.end, paint)
+            }
+
+            puntos.forEach { pnt ->
+                val p = if (pnt == selectedPunto) selectedPuntoPaint else puntoPaint
+                canvas.drawCircle(pnt.position.x, pnt.position.y, 10f, p)
+            }
+
+            canvas.restore()
+        }
+
+        pdfDocument.finishPage(page)
+
+        try {
+            val file = android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS
+            ).resolve(nombreArchivo)
+            pdfDocument.writeTo(file.outputStream())
+            pdfDocument.close()
+            android.widget.Toast.makeText(context, "PDF generado: ${file.absolutePath}", android.widget.Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            android.widget.Toast.makeText(context, "Error al generar PDF", android.widget.Toast.LENGTH_LONG).show()
         }
     }
 }

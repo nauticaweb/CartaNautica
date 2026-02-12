@@ -5,6 +5,7 @@ import android.widget.Button
 import android.os.Build
 import android.os.Process
 import android.widget.EditText
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
@@ -20,6 +21,7 @@ class MainActivity : AppCompatActivity() {
 
         // Botones existentes
         val btnAgregar = findViewById<Button>(R.id.btnAgregar)
+        val btnDemora = findViewById<Button>(R.id.btnDemora)   // NUEVO
         val btnVectorLibre = findViewById<Button>(R.id.btnVectorLibre)
         val btnDistancia = findViewById<Button>(R.id.btnDistancia)
         val btnBorrar = findViewById<Button>(R.id.btnBorrar)
@@ -31,6 +33,10 @@ class MainActivity : AppCompatActivity() {
 
         btnAgregar.setOnClickListener {
             showRumboDistanciaDialog()
+        }
+
+        btnDemora.setOnClickListener {
+            showDemoraDialog()
         }
 
         btnVectorLibre.setOnClickListener {
@@ -82,12 +88,45 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // ----------- NUEVA FUNCIÓN DEMORA -----------
+
+    private fun showDemoraDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_rumbo_distancia, null)
+        val editRumbo = dialogView.findViewById<EditText>(R.id.editRumbo)
+        val editDistancia = dialogView.findViewById<EditText>(R.id.editDistancia)
+
+        // Ocultamos distancia
+        editDistancia.visibility = View.GONE
+
+        AlertDialog.Builder(this)
+            .setTitle("Demora")
+            .setView(dialogView)
+            .setPositiveButton("Aceptar") { _, _ ->
+
+                val demora = editRumbo.text.toString().toFloatOrNull()
+
+                if (demora != null) {
+
+                    // Normalización 0–360
+                    val demoraNormalizada = ((demora % 360f) + 360f) % 360f
+
+                    // Invertimos rumbo (demora → línea)
+                    val rumboInvertido = (demoraNormalizada + 180f) % 360f
+
+                    // Distancia fija 10 millas
+                    cartaView.prepararVector(rumboInvertido, 10f)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
     private fun showDistanciaDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_rumbo_distancia, null)
         val editRumbo = dialogView.findViewById<EditText>(R.id.editRumbo)
         val editDistancia = dialogView.findViewById<EditText>(R.id.editDistancia)
 
-        editRumbo.visibility = EditText.GONE
+        editRumbo.visibility = View.GONE
 
         AlertDialog.Builder(this)
             .setTitle("Distancia")
@@ -102,7 +141,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // CORREGIDO: diálogo Latitud / Longitud con orden lógico y minutos opcionales
     private fun showLatLonDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_lat_lon, null)
 
@@ -116,11 +154,8 @@ class MainActivity : AppCompatActivity() {
             .setView(dialogView)
             .setPositiveButton("Aceptar") { _, _ ->
 
-                // Latitud
                 val latGrados = editLatGrados.text.toString().toDoubleOrNull()
                 val latMinutos = editLatMinutos.text.toString().toDoubleOrNull() ?: 0.0
-
-                // Longitud
                 val lonGrados = editLonGrados.text.toString().toDoubleOrNull()
                 val lonMinutos = editLonMinutos.text.toString().toDoubleOrNull() ?: 0.0
 

@@ -34,6 +34,14 @@
                 android:text="Agregar Rumbo"
                 android:layout_marginBottom="16dp"/>
 
+            <!-- NUEVO BOTÓN DEMORA -->
+            <Button
+                android:id="@+id/btnDemora"
+                android:layout_width="150dp"
+                android:layout_height="50dp"
+                android:text="Agregar Demora"
+                android:layout_marginBottom="16dp"/>
+
             <Button
                 android:id="@+id/btnVectorLibre"
                 android:layout_width="150dp"

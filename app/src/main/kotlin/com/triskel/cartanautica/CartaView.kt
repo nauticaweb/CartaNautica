@@ -81,34 +81,34 @@ class CartaView @JvmOverloads constructor(
 
     // ---------- Paint ----------
     private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.RED
+        color = Color.BLUE       // Rumbo en azul
         strokeWidth = 5f
     }
 
     private val selectedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.YELLOW
+        color = Color.YELLOW     // Seleccionado amarillo
         strokeWidth = 7f
     }
 
     private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLUE
+        color = Color.GREEN      // Círculo en verde
         style = Paint.Style.STROKE
         strokeWidth = 4f
     }
 
     private val selectedCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.YELLOW
+        color = Color.YELLOW     // Seleccionado amarillo
         style = Paint.Style.STROKE
         strokeWidth = 6f
     }
 
     private val puntoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.RED
+        color = Color.rgb(165, 42, 42)  // Vector libre marrón
         style = Paint.Style.FILL
     }
 
     private val selectedPuntoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.YELLOW
+        color = Color.YELLOW     // Seleccionado amarillo
         style = Paint.Style.FILL
     }
 
@@ -166,8 +166,12 @@ class CartaView @JvmOverloads constructor(
         }
 
         vectorLibrePreview?.let {
-            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, vectorPaint)
-            drawArrow(canvas, it.start, it.end, vectorPaint)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(165, 42, 42)  // Marrón
+                strokeWidth = 5f
+            }
+            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
+            drawArrow(canvas, it.start, it.end, paint)
         }
 
         puntos.forEach { p ->
@@ -276,6 +280,8 @@ class CartaView @JvmOverloads constructor(
                     pendingCircle = false
                 }
             }
+
+            else -> {}
         }
         return true
     }

@@ -548,43 +548,57 @@ class CartaView @JvmOverloads constructor(
     }
 
     fun imprimirCartaPdf(nombreArchivo: String = "CartaNautica.pdf") {
-        val pdfDocument = android.graphics.pdf.PdfDocument()
 
-        // --- Tamaño A3 ---
-        val pageWidth = 842  // puntos
-        val pageHeight = 1191
+        val pdfDocument = PdfDocument()
+
+        // --- A3 APaisado ---
+        val pageWidth = 1191   // A3 horizontal
+        val pageHeight = 842
 
         val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
         val page = pdfDocument.startPage(pageInfo)
         val canvas = page.canvas
 
         cartaBitmap?.let { bmp ->
-            val scale = min(pageWidth.toFloat() / bmp.width, pageHeight.toFloat() / bmp.height)
-            val offsetX = (pageWidth - bmp.width * scale) / 2
-            val offsetY = (pageHeight - bmp.height * scale) / 2
+
+            // Escalado proporcional máximo
+            val scale = min(
+                pageWidth.toFloat() / bmp.width,
+                pageHeight.toFloat() / bmp.height
+            )
+
+            val offsetX = (pageWidth - bmp.width * scale) / 2f
+            val offsetY = (pageHeight - bmp.height * scale) / 2f
 
             canvas.save()
             canvas.translate(offsetX, offsetY)
             canvas.scale(scale, scale)
 
+            // --- DIBUJAR CARTA ---
+            canvas.drawBitmap(bmp, 0f, 0f, null)
+
+            // --- CÍRCULOS ---
             circles.forEach {
-                val p = if (it == selectedCircle) selectedCirclePaint else circlePaint
-                canvas.drawCircle(it.center.x, it.center.y, it.radiusPx, p)
+                val paint = if (it == selectedCircle) selectedCirclePaint else circlePaint
+                canvas.drawCircle(it.center.x, it.center.y, it.radiusPx, paint)
             }
 
+            // --- VECTORES ---
             vectors.forEach {
-                val paint = if (it == selectedVector) selectedPaint else when(it.tipo) {
+                val paint = if (it == selectedVector) selectedPaint else when (it.tipo) {
                     TipoVector.RUMBO -> rumboPaint
                     TipoVector.DEMORA -> demoraPaint
                     TipoVector.LIBRE -> librePaint
                 }
+
                 canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
                 drawArrow(canvas, it.start, it.end, paint)
             }
 
+            // --- PUNTOS ---
             puntos.forEach { pnt ->
-                val p = if (pnt == selectedPunto) selectedPuntoPaint else puntoPaint
-                canvas.drawCircle(pnt.position.x, pnt.position.y, 10f, p)
+                val paint = if (pnt == selectedPunto) selectedPuntoPaint else puntoPaint
+                canvas.drawCircle(pnt.position.x, pnt.position.y, 10f, paint)
             }
 
             canvas.restore()
@@ -593,15 +607,27 @@ class CartaView @JvmOverloads constructor(
         pdfDocument.finishPage(page)
 
         try {
-            val file = android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS
-            ).resolve(nombreArchivo)
+            val file = android.os.Environment
+                .getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                .resolve(nombreArchivo)
+
             pdfDocument.writeTo(file.outputStream())
             pdfDocument.close()
-            android.widget.Toast.makeText(context, "PDF generado: ${file.absolutePath}", android.widget.Toast.LENGTH_LONG).show()
+
+            android.widget.Toast.makeText(
+                context,
+                "PDF generado: ${file.absolutePath}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+
         } catch (e: Exception) {
             e.printStackTrace()
-            android.widget.Toast.makeText(context, "Error al generar PDF", android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(
+                context,
+                "Error al generar PDF",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
         }
     }
+
 }

@@ -19,15 +19,13 @@ class MainActivity : AppCompatActivity() {
 
         cartaView = findViewById(R.id.cartaView)
 
-        // Botones existentes
+        // Botones
         val btnAgregar = findViewById<Button>(R.id.btnAgregar)
-        val btnDemora = findViewById<Button>(R.id.btnDemora)   // NUEVO
+        val btnDemora = findViewById<Button>(R.id.btnDemora)
         val btnVectorLibre = findViewById<Button>(R.id.btnVectorLibre)
         val btnDistancia = findViewById<Button>(R.id.btnDistancia)
         val btnBorrar = findViewById<Button>(R.id.btnBorrar)
         val btnSalir = findViewById<Button>(R.id.btnSalir)
-
-        // Botones nuevos
         val btnCrearPunto = findViewById<Button>(R.id.btnCrearPunto)
         val btnImprimir = findViewById<Button>(R.id.btnImprimir)
 

@@ -21,7 +21,6 @@ class CartaView @JvmOverloads constructor(
     private val LON_MAX = 6.336633333333333
     private val LON_MIN = 5.163366666666667
 
-    // Latitud de referencia para corrección de longitud
     private val LAT_REF = (LAT_MAX + LAT_MIN) / 2.0
     private val COS_LAT_REF = cos(Math.toRadians(LAT_REF))
 
@@ -67,7 +66,9 @@ class CartaView @JvmOverloads constructor(
     )
 
     // ---------- Elementos ----------
-    data class VectorNautico(val start: PointF, val end: PointF)
+    enum class TipoVector { RUMBO, DEMORA, LIBRE }
+
+    data class VectorNautico(val start: PointF, val end: PointF, val tipo: TipoVector)
     data class CirculoNautico(var center: PointF, val radiusPx: Float)
     data class Punto(var position: PointF)
 
@@ -80,35 +81,43 @@ class CartaView @JvmOverloads constructor(
     private var selectedPunto: Punto? = null
 
     // ---------- Paint ----------
-    private val vectorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLUE       // Rumbo en azul
+    private val rumboPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLUE
+        strokeWidth = 5f
+    }
+    private val demoraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#FFA500") // Naranja
+        strokeWidth = 5f
+    }
+    private val librePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(165, 42, 42)  // Marrón
         strokeWidth = 5f
     }
 
     private val selectedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.YELLOW     // Seleccionado amarillo
+        color = Color.YELLOW
         strokeWidth = 7f
     }
 
     private val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.GREEN      // Círculo en verde
+        color = Color.GREEN
         style = Paint.Style.STROKE
         strokeWidth = 4f
     }
 
     private val selectedCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.YELLOW     // Seleccionado amarillo
+        color = Color.YELLOW
         style = Paint.Style.STROKE
         strokeWidth = 6f
     }
 
     private val puntoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(165, 42, 42)  // Vector libre marrón
+        color = Color.RED
         style = Paint.Style.FILL
     }
 
     private val selectedPuntoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.YELLOW     // Seleccionado amarillo
+        color = Color.YELLOW
         style = Paint.Style.FILL
     }
 
@@ -160,16 +169,17 @@ class CartaView @JvmOverloads constructor(
         }
 
         vectors.forEach {
-            val p = if (it == selectedVector) selectedPaint else vectorPaint
-            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, p)
-            drawArrow(canvas, it.start, it.end, p)
+            val paint = if (it == selectedVector) selectedPaint else when(it.tipo) {
+                TipoVector.RUMBO -> rumboPaint
+                TipoVector.DEMORA -> demoraPaint
+                TipoVector.LIBRE -> librePaint
+            }
+            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
+            drawArrow(canvas, it.start, it.end, paint)
         }
 
         vectorLibrePreview?.let {
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.rgb(165, 42, 42)  // Marrón
-                strokeWidth = 5f
-            }
+            val paint = librePaint
             canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
             drawArrow(canvas, it.start, it.end, paint)
         }
@@ -224,7 +234,7 @@ class CartaView @JvmOverloads constructor(
 
                 if (modoVectorLibre && vectorLibreInicio != null) {
                     val end = screenToCarta(event.x, event.y)
-                    vectorLibrePreview = VectorNautico(vectorLibreInicio!!, end)
+                    vectorLibrePreview = VectorNautico(vectorLibreInicio!!, end, TipoVector.LIBRE)
                     invalidate()
                     return true
                 }
@@ -368,7 +378,7 @@ class CartaView @JvmOverloads constructor(
         var g = absV.toInt()
         var m = (absV - g) * 60.0
 
-        if (m >= 59.9999995) {   // margen contra errores de coma flotante
+        if (m >= 59.9999995) {
             m = 0.0
             g += 1
         }
@@ -442,7 +452,7 @@ class CartaView @JvmOverloads constructor(
             start.x + (dir.x - start.x) * factor.toFloat(),
             start.y + (dir.y - start.y) * factor.toFloat()
         )
-        vectors.add(VectorNautico(start, end))
+        vectors.add(VectorNautico(start, end, TipoVector.RUMBO))
         invalidate()
     }
 

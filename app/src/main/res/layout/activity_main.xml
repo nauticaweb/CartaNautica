@@ -31,7 +31,7 @@
                 android:id="@+id/btnAgregar"
                 android:layout_width="150dp"
                 android:layout_height="50dp"
-                android:text="Agregar Rumbo"
+                android:text="Rumbo"
                 android:layout_marginBottom="16dp"/>
 
             <!-- NUEVO BOTÓN DEMORA -->
@@ -39,7 +39,7 @@
                 android:id="@+id/btnDemora"
                 android:layout_width="150dp"
                 android:layout_height="50dp"
-                android:text="Agregar Demora"
+                android:text="Demora"
                 android:layout_marginBottom="16dp"/>
 
             <Button
@@ -53,7 +53,7 @@
                 android:id="@+id/btnDistancia"
                 android:layout_width="150dp"
                 android:layout_height="50dp"
-                android:text="Agregar Distancia"
+                android:text="Distancia"
                 android:layout_marginBottom="16dp"/>
 
             <Button

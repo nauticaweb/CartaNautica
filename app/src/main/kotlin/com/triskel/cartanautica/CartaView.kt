@@ -551,24 +551,27 @@ class CartaView @JvmOverloads constructor(
 
         val pdfDocument = PdfDocument()
 
-        // --- A3 APaisado ---
-        val pageWidth = 1191   // A3 horizontal
+        val pageWidth = 1191  // A3 horizontal
         val pageHeight = 842
 
         val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
         val page = pdfDocument.startPage(pageInfo)
         val canvas = page.canvas
 
+        canvas.drawColor(Color.WHITE)
+
         cartaBitmap?.let { bmp ->
 
-            // Escalado proporcional máximo
-            val scale = min(
-                pageWidth.toFloat() / bmp.width,
-                pageHeight.toFloat() / bmp.height
-            )
+            // Escalado proporcional para caber en A3 horizontal
+            val scaleX = pageWidth.toFloat() / bmp.width
+            val scaleY = pageHeight.toFloat() / bmp.height
+            val scale = min(scaleX, scaleY)
 
-            val offsetX = (pageWidth - bmp.width * scale) / 2f
-            val offsetY = (pageHeight - bmp.height * scale) / 2f
+            val newWidth = bmp.width * scale
+            val newHeight = bmp.height * scale
+
+            val offsetX = (pageWidth - newWidth) / 2f
+            val offsetY = (pageHeight - newHeight) / 2f
 
             canvas.save()
             canvas.translate(offsetX, offsetY)
@@ -585,20 +588,19 @@ class CartaView @JvmOverloads constructor(
 
             // --- VECTORES ---
             vectors.forEach {
-                val paint = if (it == selectedVector) selectedPaint else when (it.tipo) {
+                val paint = if (it == selectedVector) selectedPaint else when(it.tipo) {
                     TipoVector.RUMBO -> rumboPaint
                     TipoVector.DEMORA -> demoraPaint
                     TipoVector.LIBRE -> librePaint
                 }
-
                 canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
                 drawArrow(canvas, it.start, it.end, paint)
             }
 
             // --- PUNTOS ---
-            puntos.forEach { pnt ->
-                val paint = if (pnt == selectedPunto) selectedPuntoPaint else puntoPaint
-                canvas.drawCircle(pnt.position.x, pnt.position.y, 10f, paint)
+            puntos.forEach { p ->
+                val paint = if (p == selectedPunto) selectedPuntoPaint else puntoPaint
+                canvas.drawCircle(p.position.x, p.position.y, 10f, paint)
             }
 
             canvas.restore()

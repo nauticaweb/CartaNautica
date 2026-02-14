@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.widget.Toast
 import android.graphics.pdf.PdfDocument
 import android.view.*
 import kotlin.math.*
@@ -551,10 +552,16 @@ class CartaView @JvmOverloads constructor(
 
         val pdfDocument = PdfDocument()
 
-        val pageWidth = 1191  // A3 horizontal
+        // A3 horizontal en puntos (aprox)
+        val pageWidth = 1191
         val pageHeight = 842
 
-        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
+        val pageInfo = PdfDocument.PageInfo.Builder(
+            pageWidth,
+            pageHeight,
+            1
+        ).create()
+
         val page = pdfDocument.startPage(pageInfo)
         val canvas = page.canvas
 
@@ -562,7 +569,7 @@ class CartaView @JvmOverloads constructor(
 
         cartaBitmap?.let { bmp ->
 
-            // Escalado proporcional para caber en A3 horizontal
+            // Escalado proporcional para que la carta quepa en A3
             val scaleX = pageWidth.toFloat() / bmp.width
             val scaleY = pageHeight.toFloat() / bmp.height
             val scale = min(scaleX, scaleY)
@@ -574,10 +581,12 @@ class CartaView @JvmOverloads constructor(
             val offsetY = (pageHeight - newHeight) / 2f
 
             canvas.save()
+
+            // 🔥 Transformación única (igual que en onDraw pero fija)
             canvas.translate(offsetX, offsetY)
             canvas.scale(scale, scale)
 
-            // --- DIBUJAR CARTA ---
+            // --- CARTA ---
             canvas.drawBitmap(bmp, 0f, 0f, null)
 
             // --- CÍRCULOS ---
@@ -588,13 +597,20 @@ class CartaView @JvmOverloads constructor(
 
             // --- VECTORES ---
             vectors.forEach {
-                val paint = if (it == selectedVector) selectedPaint else when(it.tipo) {
+                val paint = if (it == selectedVector) selectedPaint else when (it.tipo) {
                     TipoVector.RUMBO -> rumboPaint
                     TipoVector.DEMORA -> demoraPaint
                     TipoVector.LIBRE -> librePaint
                 }
+
                 canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
                 drawArrow(canvas, it.start, it.end, paint)
+            }
+
+            // --- PREVIEW (por seguridad) ---
+            vectorLibrePreview?.let {
+                canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, librePaint)
+                drawArrow(canvas, it.start, it.end, librePaint)
             }
 
             // --- PUNTOS ---
@@ -616,18 +632,18 @@ class CartaView @JvmOverloads constructor(
             pdfDocument.writeTo(file.outputStream())
             pdfDocument.close()
 
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 context,
-                "PDF generado: ${file.absolutePath}",
-                android.widget.Toast.LENGTH_LONG
+                "PDF generado correctamente",
+                Toast.LENGTH_LONG
             ).show()
 
         } catch (e: Exception) {
             e.printStackTrace()
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 context,
                 "Error al generar PDF",
-                android.widget.Toast.LENGTH_LONG
+                Toast.LENGTH_LONG
             ).show()
         }
     }

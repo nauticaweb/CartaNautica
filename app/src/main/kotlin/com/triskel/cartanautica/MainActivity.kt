@@ -79,14 +79,12 @@ class MainActivity : AppCompatActivity() {
                 val rumbo = editRumbo.text.toString().toFloatOrNull()
                 val distancia = editDistancia.text.toString().toFloatOrNull()
                 if (rumbo != null && distancia != null) {
-                    cartaView.prepararVector(rumbo, distancia)
+                    cartaView.prepararVector(rumbo, distancia, CartaView.TipoVector.RUMBO)
                 }
             }
             .setNegativeButton("Cancelar", null)
             .show()
     }
-
-    // ----------- NUEVA FUNCIÓN DEMORA -----------
 
     private fun showDemoraDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_rumbo_distancia, null)
@@ -112,7 +110,7 @@ class MainActivity : AppCompatActivity() {
                     val rumboInvertido = (demoraNormalizada + 180f) % 360f
 
                     // Distancia fija 10 millas
-                    cartaView.prepararVector(rumboInvertido, 10f)
+                    cartaView.prepararVector(rumboInvertido, 10f, CartaView.TipoVector.DEMORA)
                 }
             }
             .setNegativeButton("Cancelar", null)

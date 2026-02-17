@@ -20,6 +20,7 @@ class CartaView @JvmOverloads constructor(
 
     // ---------- Carta ----------
     private var cartaBitmap: Bitmap? = null
+    private var pendingVectorTipo: TipoVector = TipoVector.RUMBO
 
     // ---------- Coordenadas reales ----------
     private val LAT_MAX = 36.33663333333333
@@ -94,6 +95,8 @@ class CartaView @JvmOverloads constructor(
     private val demoraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FFA500") // Naranja
         strokeWidth = 5f
+        style = Paint.Style.STROKE
+        pathEffect = DashPathEffect(floatArrayOf(20f, 15f), 0f)
     }
     private val librePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(165, 42, 42)  // Marrón
@@ -181,7 +184,10 @@ class CartaView @JvmOverloads constructor(
                 TipoVector.LIBRE -> librePaint
             }
             canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
-            drawArrow(canvas, it.start, it.end, paint)
+
+            if (it.tipo == TipoVector.RUMBO || it.tipo == TipoVector.LIBRE) {
+                drawArrow(canvas, it.start, it.end, paint)
+            }
         }
 
         vectorLibrePreview?.let {
@@ -303,9 +309,10 @@ class CartaView @JvmOverloads constructor(
     }
 
     // ---------- API ----------
-    fun prepararVector(rumbo: Float, distancia: Float) {
+    fun prepararVector(rumbo: Float, distancia: Float, tipo: TipoVector = TipoVector.RUMBO) {
         rumboDeg = rumbo
         distanciaMillas = distancia
+        pendingVectorTipo = tipo
         pendingVector = true
     }
 
@@ -458,7 +465,7 @@ class CartaView @JvmOverloads constructor(
             start.x + (dir.x - start.x) * factor.toFloat(),
             start.y + (dir.y - start.y) * factor.toFloat()
         )
-        vectors.add(VectorNautico(start, end, TipoVector.RUMBO))
+        vectors.add(VectorNautico(start, end, pendingVectorTipo))
         invalidate()
     }
 
@@ -576,7 +583,9 @@ class CartaView @JvmOverloads constructor(
                     TipoVector.LIBRE -> librePaint
                 }
                 canvasBitmap.drawLine(vector.start.x, vector.start.y, vector.end.x, vector.end.y, paint)
-                drawArrow(canvasBitmap, vector.start, vector.end, paint)
+                if (vector.tipo == TipoVector.RUMBO || vector.tipo == TipoVector.LIBRE) {
+                    drawArrow(canvasBitmap, vector.start, vector.end, paint)
+                }
             }
 
             // Dibujamos vector libre en preview si existe

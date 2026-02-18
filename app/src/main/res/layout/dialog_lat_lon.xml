@@ -9,7 +9,9 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Latitud"/>
+        android:text="LATITUD"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
 
     <LinearLayout
         android:orientation="horizontal"
@@ -20,7 +22,7 @@
             android:id="@+id/editLatGrados"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:hint="Grados"
+            android:hint="Grados (latitud)"
             android:inputType="numberDecimal"
             android:layout_height="wrap_content"
             android:imeOptions="actionNext"
@@ -30,7 +32,7 @@
             android:id="@+id/editLatMinutos"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:hint="Minutos"
+            android:hint="Minutos (latitud)"
             android:inputType="numberDecimal"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
@@ -42,8 +44,10 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Longitud"
-        android:layout_marginTop="12dp"/>
+        android:text="LONGITUD"
+        android:textStyle="bold"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="4dp"/>
 
     <LinearLayout
         android:orientation="horizontal"
@@ -54,7 +58,7 @@
             android:id="@+id/editLonGrados"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:hint="Grados"
+            android:hint="Grados (longitud)"
             android:inputType="numberDecimal"
             android:layout_height="wrap_content"
             android:imeOptions="actionNext"
@@ -64,7 +68,7 @@
             android:id="@+id/editLonMinutos"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:hint="Minutos"
+            android:hint="Minutos (longitud)"
             android:inputType="numberDecimal"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"

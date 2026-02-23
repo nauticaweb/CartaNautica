@@ -560,87 +560,84 @@ class CartaView @JvmOverloads constructor(
     }
 
     fun imprimirCartaPdf(nombreArchivo: String) {
-        cartaBitmap?.let { bmpOriginal ->
 
-            // Creamos un bitmap temporal con el tamaño original de la carta
-            val bmp = Bitmap.createBitmap(bmpOriginal.width, bmpOriginal.height, Bitmap.Config.ARGB_8888)
-            val canvasBitmap = Canvas(bmp)
-
-            // Dibujamos la carta original
-            canvasBitmap.drawBitmap(bmpOriginal, 0f, 0f, null)
-
-            // Dibujamos círculos
-            circles.forEach { circle ->
-                val paint = if (circle == selectedCircle) selectedCirclePaint else circlePaint
-                canvasBitmap.drawCircle(circle.center.x, circle.center.y, circle.radiusPx, paint)
-            }
-
-            // Dibujamos vectores
-            vectors.forEach { vector ->
-                val paint = if (vector == selectedVector) selectedPaint else when (vector.tipo) {
-                    TipoVector.RUMBO -> rumboPaint
-                    TipoVector.DEMORA -> demoraPaint
-                    TipoVector.LIBRE -> librePaint
-                }
-                canvasBitmap.drawLine(vector.start.x, vector.start.y, vector.end.x, vector.end.y, paint)
-                if (vector.tipo == TipoVector.RUMBO || vector.tipo == TipoVector.LIBRE) {
-                    drawArrow(canvasBitmap, vector.start, vector.end, paint)
-                }
-            }
-
-            // Dibujamos vector libre en preview si existe
-            vectorLibrePreview?.let { vector ->
-                canvasBitmap.drawLine(vector.start.x, vector.start.y, vector.end.x, vector.end.y, librePaint)
-                drawArrow(canvasBitmap, vector.start, vector.end, librePaint)
-            }
-
-            // Dibujamos puntos
-            puntos.forEach { p ->
-                val paint = if (p == selectedPunto) selectedPuntoPaint else puntoPaint
-                canvasBitmap.drawCircle(p.position.x, p.position.y, 10f, paint)
-            }
-
-            // Creamos PDF
-            val pdfDocument = PdfDocument()
-
-            // A4 HORIZONTAL
-            val pageWidth = 842
-            val pageHeight = 595
-            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
-            val page = pdfDocument.startPage(pageInfo)
-            val canvas = page.canvas
-
-            // Escalado proporcional para que quepa toda la carta en A4
-            val scale = minOf(pageWidth.toFloat() / bmp.width, pageHeight.toFloat() / bmp.height)
-            val scaledWidth = bmp.width * scale
-            val scaledHeight = bmp.height * scale
-            val left = (pageWidth - scaledWidth) / 2
-            val top = (pageHeight - scaledHeight) / 2
-            val destRect = RectF(left, top, left + scaledWidth, top + scaledHeight)
-
-            canvas.drawColor(Color.WHITE) // fondo blanco
-            canvas.drawBitmap(bmp, null, destRect, null)
-
-            pdfDocument.finishPage(page)
-
-            // Guardamos en Descargas
-            val file = File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                nombreArchivo
-            )
-
-            try {
-                pdfDocument.writeTo(FileOutputStream(file))
-                Toast.makeText(context, "PDF guardado en Descargas", Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_LONG).show()
-            } finally {
-                pdfDocument.close()
-            }
-        } ?: run {
+        val bmp = cartaBitmap ?: run {
             Toast.makeText(context, "Error: carta no cargada", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val pdfDocument = PdfDocument()
+
+        // A4 horizontal en puntos PDF
+        val pageWidth = 842
+        val pageHeight = 595
+
+        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
+        val page = pdfDocument.startPage(pageInfo)
+        val canvas = page.canvas
+
+        canvas.drawColor(Color.WHITE)
+
+        // Escala proporcional para que quepa toda la carta
+        val scale = minOf(
+            pageWidth.toFloat() / bmp.width,
+            pageHeight.toFloat() / bmp.height
+        )
+
+        val translateX = (pageWidth - bmp.width * scale) / 2f
+        val translateY = (pageHeight - bmp.height * scale) / 2f
+
+        canvas.save()
+        canvas.translate(translateX, translateY)
+        canvas.scale(scale, scale)
+
+        // -------------------------
+        // DIBUJO EXACTAMENTE IGUAL A onDraw()
+        // PERO SIN matrix
+        // -------------------------
+
+        canvas.drawBitmap(bmp, 0f, 0f, null)
+
+        circles.forEach {
+            val paint = circlePaint
+            canvas.drawCircle(it.center.x, it.center.y, it.radiusPx, paint)
+        }
+
+        vectors.forEach {
+            val paint = when(it.tipo) {
+                TipoVector.RUMBO -> rumboPaint
+                TipoVector.DEMORA -> demoraPaint
+                TipoVector.LIBRE -> librePaint
+            }
+
+            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
+
+            if (it.tipo == TipoVector.RUMBO || it.tipo == TipoVector.LIBRE) {
+                drawArrow(canvas, it.start, it.end, paint)
+            }
+        }
+
+        puntos.forEach {
+            canvas.drawCircle(it.position.x, it.position.y, 10f, puntoPaint)
+        }
+
+        canvas.restore()
+
+        pdfDocument.finishPage(page)
+
+        val file = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            nombreArchivo
+        )
+
+        try {
+            pdfDocument.writeTo(FileOutputStream(file))
+            Toast.makeText(context, "PDF guardado en Descargas", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_LONG).show()
+        } finally {
+            pdfDocument.close()
         }
     }
-
 }

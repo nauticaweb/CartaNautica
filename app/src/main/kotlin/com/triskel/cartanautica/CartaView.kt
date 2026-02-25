@@ -561,67 +561,45 @@ class CartaView @JvmOverloads constructor(
 
     fun imprimirCartaPdf(nombreArchivo: String) {
 
-        val bmp = cartaBitmap ?: run {
-            Toast.makeText(context, "Error: carta no cargada", Toast.LENGTH_LONG).show()
+        if (width == 0 || height == 0) {
+            Toast.makeText(context, "Vista no preparada", Toast.LENGTH_LONG).show()
             return
         }
 
+        // 1️⃣ Crear bitmap EXACTO de lo que se ve en pantalla
+        val bitmapVista = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvasVista = Canvas(bitmapVista)
+
+        // Dibujamos el View completo (incluye matrix, zoom, desplazamiento,)
+        draw(canvasVista)
+
+        // 2️⃣ Crear PDF
         val pdfDocument = PdfDocument()
 
-        // A4 horizontal en puntos PDF
-        val pageWidth = 842
+        val pageWidth = 842   // A4 horizontal
         val pageHeight = 595
 
         val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
         val page = pdfDocument.startPage(pageInfo)
-        val canvas = page.canvas
+        val canvasPdf = page.canvas
 
-        canvas.drawColor(Color.WHITE)
+        canvasPdf.drawColor(Color.WHITE)
 
-        // Escala proporcional para que quepa toda la carta
+        // 3️⃣ Escalar proporcionalmente
         val scale = minOf(
-            pageWidth.toFloat() / bmp.width,
-            pageHeight.toFloat() / bmp.height
+            pageWidth.toFloat() / bitmapVista.width,
+            pageHeight.toFloat() / bitmapVista.height
         )
 
-        val translateX = (pageWidth - bmp.width * scale) / 2f
-        val translateY = (pageHeight - bmp.height * scale) / 2f
+        val scaledWidth = bitmapVista.width * scale
+        val scaledHeight = bitmapVista.height * scale
 
-        canvas.save()
-        canvas.translate(translateX, translateY)
-        canvas.scale(scale, scale)
+        val left = (pageWidth - scaledWidth) / 2f
+        val top = (pageHeight - scaledHeight) / 2f
 
-        // -------------------------
-        // DIBUJO EXACTAMENTE IGUAL A onDraw()
-        // PERO SIN matrix
-        // -------------------------
+        val dest = RectF(left, top, left + scaledWidth, top + scaledHeight)
 
-        canvas.drawBitmap(bmp, 0f, 0f, null)
-
-        circles.forEach {
-            val paint = circlePaint
-            canvas.drawCircle(it.center.x, it.center.y, it.radiusPx, paint)
-        }
-
-        vectors.forEach {
-            val paint = when(it.tipo) {
-                TipoVector.RUMBO -> rumboPaint
-                TipoVector.DEMORA -> demoraPaint
-                TipoVector.LIBRE -> librePaint
-            }
-
-            canvas.drawLine(it.start.x, it.start.y, it.end.x, it.end.y, paint)
-
-            if (it.tipo == TipoVector.RUMBO || it.tipo == TipoVector.LIBRE) {
-                drawArrow(canvas, it.start, it.end, paint)
-            }
-        }
-
-        puntos.forEach {
-            canvas.drawCircle(it.position.x, it.position.y, 10f, puntoPaint)
-        }
-
-        canvas.restore()
+        canvasPdf.drawBitmap(bitmapVista, null, dest, null)
 
         pdfDocument.finishPage(page)
 

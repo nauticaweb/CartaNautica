@@ -560,60 +560,103 @@ class CartaView @JvmOverloads constructor(
     }
 
     fun imprimirCartaPdf(nombreArchivo: String) {
+        val bmpCarta = cartaBitmap ?: return
 
-        if (width == 0 || height == 0) {
-            Toast.makeText(context, "Vista no preparada", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        // 1️⃣ Crear bitmap EXACTO de lo que se ve en pantalla
-        val bitmapVista = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvasVista = Canvas(bitmapVista)
-
-        // Dibujamos el View completo (incluye matrix, zoom, desplazamiento,)
-        draw(canvasVista)
-
-        // 2️⃣ Crear PDF
         val pdfDocument = PdfDocument()
-
-        val pageWidth = 842   // A4 horizontal
+        // A4 Horizontal en puntos (72 puntos por pulgada)
+        val pageWidth = 842
         val pageHeight = 595
 
         val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
         val page = pdfDocument.startPage(pageInfo)
         val canvasPdf = page.canvas
 
-        canvasPdf.drawColor(Color.WHITE)
+        // 1️⃣ Calcular el área de dibujo (manteniendo proporción)
+        val cartaAspectRatio = bmpCarta.width.toFloat() / bmpCarta.height.toFloat()
+        val canvasAspectRatio = pageWidth.toFloat() / pageHeight.toFloat()
 
-        // 3️⃣ Escalar proporcionalmente
-        val scale = minOf(
-            pageWidth.toFloat() / bitmapVista.width,
-            pageHeight.toFloat() / bitmapVista.height
-        )
+        val drawWidth: Float
+        val drawHeight: Float
+        if (cartaAspectRatio > canvasAspectRatio) {
+            drawWidth = pageWidth.toFloat()
+            drawHeight = pageWidth.toFloat() / cartaAspectRatio
+        } else {
+            drawHeight = pageHeight.toFloat()
+            drawWidth = pageHeight.toFloat() * cartaAspectRatio
+        }
 
-        val scaledWidth = bitmapVista.width * scale
-        val scaledHeight = bitmapVista.height * scale
+        val left = (pageWidth - drawWidth) / 2f
+        val top = (pageHeight - drawHeight) / 2f
 
-        val left = (pageWidth - scaledWidth) / 2f
-        val top = (pageHeight - scaledHeight) / 2f
+        // 2️⃣ Dibujar la carta ajustada al rectángulo (FORZADO)
+        val destRect = RectF(left, top, left + drawWidth, top + drawHeight)
+        canvasPdf.drawBitmap(bmpCarta, null, destRect, null)
 
-        val dest = RectF(left, top, left + scaledWidth, top + scaledHeight)
+        // 3️⃣ Dibujar los vectores REESCALADOS
+        // Necesitamos que los vectores se muevan y escalen igual que la carta base
+        val scaleFactor = drawWidth / bmpCarta.width.toFloat()
 
-        canvasPdf.drawBitmap(bitmapVista, null, dest, null)
+        canvasPdf.save()
+        canvasPdf.translate(left, top)
+        canvasPdf.scale(scaleFactor, scaleFactor)
 
+        // Pincel para el PDF (grosor adaptado al tamaño real del bitmap)
+        val paintPdf = Paint().apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 10f // Grosor fijo relativo a la imagen original
+            isAntiAlias = true
+        }
+
+        vectors.forEach { v ->
+            paintPdf.color = when(v.tipo) {
+                TipoVector.RUMBO -> Color.BLUE
+                TipoVector.DEMORA -> Color.parseColor("#FFA500")
+                TipoVector.LIBRE -> Color.rgb(165, 42, 42)
+            }
+            if (v.tipo == TipoVector.DEMORA) {
+                paintPdf.pathEffect = DashPathEffect(floatArrayOf(40f, 20f), 0f)
+            } else {
+                paintPdf.pathEffect = null
+            }
+
+            canvasPdf.drawLine(v.start.x, v.start.y, v.end.x, v.end.y, paintPdf)
+
+            if (v.tipo == TipoVector.RUMBO || v.tipo == TipoVector.LIBRE) {
+                drawArrow(canvasPdf, v.start, v.end, paintPdf)
+            }
+        }
+
+        // Dibujar puntos
+        val paintPuntoPdf = Paint().apply { color = Color.RED; style = Paint.Style.FILL }
+        puntos.forEach { p ->
+            canvasPdf.drawCircle(p.position.x, p.position.y, 15f, paintPuntoPdf)
+        }
+
+        canvasPdf.restore()
         pdfDocument.finishPage(page)
 
-        val file = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            nombreArchivo
-        )
+        // 4️⃣ Guardado mediante MediaStore
+        guardarEnDescargas(pdfDocument, nombreArchivo)
+    }
 
+    // Función auxiliar para limpiar el código de guardado
+    private fun guardarEnDescargas(pdfDocument: PdfDocument, nombreArchivo: String) {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, nombreArchivo)
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+
+        val uri = context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
         try {
-            pdfDocument.writeTo(FileOutputStream(file))
-            Toast.makeText(context, "PDF guardado en Descargas", Toast.LENGTH_LONG).show()
+            uri?.let {
+                context.contentResolver.openOutputStream(it)?.use { out ->
+                    pdfDocument.writeTo(out)
+                    Toast.makeText(context, "PDF generado con éxito", Toast.LENGTH_SHORT).show()
+                }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_LONG).show()
         } finally {
             pdfDocument.close()
         }

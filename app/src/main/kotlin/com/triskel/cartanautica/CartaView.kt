@@ -571,7 +571,7 @@ class CartaView @JvmOverloads constructor(
         val page = pdfDocument.startPage(pageInfo)
         val canvasPdf = page.canvas
 
-        // 1️⃣ Calcular el área de dibujo (manteniendo proporción)
+        // 1️⃣ Calcular el área de dibujo manteniendo la proporción de la carta
         val cartaAspectRatio = bmpCarta.width.toFloat() / bmpCarta.height.toFloat()
         val canvasAspectRatio = pageWidth.toFloat() / pageHeight.toFloat()
 
@@ -588,46 +588,58 @@ class CartaView @JvmOverloads constructor(
         val left = (pageWidth - drawWidth) / 2f
         val top = (pageHeight - drawHeight) / 2f
 
-        // 2️⃣ Dibujar la carta ajustada al rectángulo (FORZADO)
+        // 2️⃣ Dibujar la imagen de la carta de fondo
         val destRect = RectF(left, top, left + drawWidth, top + drawHeight)
         canvasPdf.drawBitmap(bmpCarta, null, destRect, null)
 
-        // 3️⃣ Dibujar los vectores REESCALADOS
-        // Necesitamos que los vectores se muevan y escalen igual que la carta base
+        // 3️⃣ Dibujar elementos (vectores, círculos, puntos) con escalado
         val scaleFactor = drawWidth / bmpCarta.width.toFloat()
 
         canvasPdf.save()
         canvasPdf.translate(left, top)
         canvasPdf.scale(scaleFactor, scaleFactor)
 
-        // Pincel para el PDF (grosor adaptado al tamaño real del bitmap)
-        val paintPdf = Paint().apply {
+        // --- Pincel para VECTORES ---
+        val paintVectorPdf = Paint().apply {
             style = Paint.Style.STROKE
-            strokeWidth = 10f // Grosor fijo relativo a la imagen original
+            strokeWidth = 10f
             isAntiAlias = true
         }
 
         vectors.forEach { v ->
-            paintPdf.color = when(v.tipo) {
+            paintVectorPdf.color = when(v.tipo) {
                 TipoVector.RUMBO -> Color.BLUE
                 TipoVector.DEMORA -> Color.parseColor("#FFA500")
                 TipoVector.LIBRE -> Color.rgb(165, 42, 42)
             }
-            if (v.tipo == TipoVector.DEMORA) {
-                paintPdf.pathEffect = DashPathEffect(floatArrayOf(40f, 20f), 0f)
-            } else {
-                paintPdf.pathEffect = null
-            }
+            // Aplicar efecto discontinuo solo si es Demora
+            paintVectorPdf.pathEffect = if (v.tipo == TipoVector.DEMORA) {
+                DashPathEffect(floatArrayOf(40f, 20f), 0f)
+            } else null
 
-            canvasPdf.drawLine(v.start.x, v.start.y, v.end.x, v.end.y, paintPdf)
+            canvasPdf.drawLine(v.start.x, v.start.y, v.end.x, v.end.y, paintVectorPdf)
 
             if (v.tipo == TipoVector.RUMBO || v.tipo == TipoVector.LIBRE) {
-                drawArrow(canvasPdf, v.start, v.end, paintPdf)
+                drawArrow(canvasPdf, v.start, v.end, paintVectorPdf)
             }
         }
 
-        // Dibujar puntos
-        val paintPuntoPdf = Paint().apply { color = Color.RED; style = Paint.Style.FILL }
+        // --- Pincel para CÍRCULOS (Corregido: Ahora se dibujan) ---
+        val paintCirculoPdf = Paint().apply {
+            color = Color.GREEN
+            style = Paint.Style.STROKE
+            strokeWidth = 8f
+            isAntiAlias = true
+        }
+        circles.forEach { c ->
+            canvasPdf.drawCircle(c.center.x, c.center.y, c.radiusPx, paintCirculoPdf)
+        }
+
+        // --- Pincel para PUNTOS ---
+        val paintPuntoPdf = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.FILL
+        }
         puntos.forEach { p ->
             canvasPdf.drawCircle(p.position.x, p.position.y, 15f, paintPuntoPdf)
         }
@@ -635,30 +647,52 @@ class CartaView @JvmOverloads constructor(
         canvasPdf.restore()
         pdfDocument.finishPage(page)
 
-        // 4️⃣ Guardado mediante MediaStore
+        // 4️⃣ Guardar el archivo con soporte para API 26 hasta API 34+
         guardarEnDescargas(pdfDocument, nombreArchivo)
     }
 
-    // Función auxiliar para limpiar el código de guardado
     private fun guardarEnDescargas(pdfDocument: PdfDocument, nombreArchivo: String) {
-        val values = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, nombreArchivo)
-            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-        }
+        // Verificar si el nombre tiene extensión .pdf
+        val nombreConExtension = if (nombreArchivo.lowercase().endsWith(".pdf")) nombreArchivo else "$nombreArchivo.pdf"
 
-        val uri = context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-        try {
-            uri?.let {
-                context.contentResolver.openOutputStream(it)?.use { out ->
-                    pdfDocument.writeTo(out)
-                    Toast.makeText(context, "PDF generado con éxito", Toast.LENGTH_SHORT).show()
-                }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            // Android 10+ (Scoped Storage)
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, nombreConExtension)
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            pdfDocument.close()
+
+            val uri = context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            try {
+                uri?.let {
+                    context.contentResolver.openOutputStream(it)?.use { out ->
+                        pdfDocument.writeTo(out)
+                        Toast.makeText(context, "PDF guardado en Descargas", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Error al guardar PDF", Toast.LENGTH_SHORT).show()
+            } finally {
+                pdfDocument.close()
+            }
+        } else {
+            // Android 9 e inferiores (Requiere WRITE_EXTERNAL_STORAGE en Manifest)
+            try {
+                val descargasDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val archivo = File(descargasDir, nombreConExtension)
+
+                FileOutputStream(archivo).use { out ->
+                    pdfDocument.writeTo(out)
+                }
+                Toast.makeText(context, "PDF guardado: ${archivo.absolutePath}", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Error de permisos de escritura", Toast.LENGTH_SHORT).show()
+            } finally {
+                pdfDocument.close()
+            }
         }
     }
 }
